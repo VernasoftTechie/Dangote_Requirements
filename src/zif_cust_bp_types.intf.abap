@@ -29,8 +29,8 @@ INTERFACE zif_cust_bp_types
 
   CONSTANTS:
     BEGIN OF c_operation,
-      create TYPE string VALUE 'CREATE',
-      read   TYPE string VALUE 'READ',
+      create TYPE zcust_bp_id VALUE 'CREATE',
+      read   TYPE zcust_bp_id VALUE 'READ',
     END OF c_operation.
 
   CONSTANTS:

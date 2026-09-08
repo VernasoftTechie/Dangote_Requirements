@@ -426,20 +426,24 @@ CLASS zcl_cust_bp_create IMPLEMENTATION.
 
 
   METHOD has_error.
-    LOOP AT it_return TRANSPORTING NO FIELDS WHERE type = 'E' OR type = 'A'.
-      rv_error = abap_true.
-      RETURN.
+    LOOP AT it_return INTO DATA(ls_obj).
+      LOOP AT ls_obj-object_msg TRANSPORTING NO FIELDS WHERE type = 'E' OR type = 'A'.
+        rv_error = abap_true.
+        RETURN.
+      ENDLOOP.
     ENDLOOP.
   ENDMETHOD.
 
 
   METHOD map_return.
-    LOOP AT it_return INTO DATA(ls_msg).
-      APPEND VALUE #( type    = ls_msg-type
-                      id      = ls_msg-id
-                      msgno   = ls_msg-number
-                      message = ls_msg-message
-                      field   = ls_msg-field ) TO rt_message.
+    LOOP AT it_return INTO DATA(ls_obj).
+      LOOP AT ls_obj-object_msg INTO DATA(ls_msg).
+        APPEND VALUE #( type    = ls_msg-type
+                        id      = ls_msg-id
+                        msgno   = ls_msg-number
+                        message = ls_msg-message
+                        field   = ls_msg-field ) TO rt_message.
+      ENDLOOP.
     ENDLOOP.
   ENDMETHOD.
 
