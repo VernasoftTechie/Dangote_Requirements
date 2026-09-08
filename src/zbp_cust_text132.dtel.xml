@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<abapGit version="v1.0.0" serializer="LCL_OBJECT_DTEL" serializer_version="v1.0.0">
+ <asx:abap xmlns:asx="http://www.sap.com/abapxml" version="1.0">
+  <asx:values>
+   <DD04V>
+    <ROLLNAME>ZBP_CUST_TEXT132</ROLLNAME>
+    <DDLANGUAGE>E</DDLANGUAGE>
+    <DATATYPE>CHAR</DATATYPE>
+    <LENG>000132</LENG>
+    <OUTPUTLEN>000132</OUTPUTLEN>
+    <DTELMASTER>E</DTELMASTER>
+    <DDTEXT>BP Customer API - text 132</DDTEXT>
+    <REPTEXT>Text 132</REPTEXT>
+    <SCRTEXT_S>Text 132</SCRTEXT_S>
+    <SCRTEXT_M>Text 132</SCRTEXT_M>
+    <SCRTEXT_L>Text 132</SCRTEXT_L>
+   </DD04V>
+  </asx:values>
+ </asx:abap>
+</abapGit>
