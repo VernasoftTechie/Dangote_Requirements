@@ -5,7 +5,20 @@ The generic ABAP is written against the well‑documented shapes of
 shifted across S/4 releases. Open each type in **SE11** and confirm, adjusting
 the marked lines. All marked lines carry a `VERIFY NODE` comment.
 
-## A. `ZCL_CUST_BP_CREATE=>build_cvi` — `CVIS_EI_EXTERN`
+> **`build_cvi` now uses only paths verified against 3 productive
+> `CL_MD_BP_MAINTAIN` implementations** (grouping/category, org name1/2,
+> searchterm1/2, address `data_key-operation='XXDFLT'` + `data-postal-data-…`,
+> `data-communication-phone-phone` / `-smtp-smtp`, `role-roles` line
+> `task`+`data_key`, `taxnumber-taxnumbers` line `task`+`data_key-taxtype`+
+> `data_key-taxnumber`, `customer-central_data-central-data-ktokd`,
+> `customer-sales_data-sales`, `customer-company_data-company`).
+>
+> **`enrich_optional( )` is the extension point** for the release-dependent
+> nodes — legal form, BP type, identification, industry sectors. It currently
+> emits `W` messages; complete it against your `BUS_EI_EXTERN` (SE11) using the
+> field names documented in the method, then those values round-trip on GET.
+
+## A. `ZCL_CUST_BP_CREATE` — `CVIS_EI_EXTERN` (historical reference)
 
 | # | Path used | Check |
 |---|---|---|
