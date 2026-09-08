@@ -34,6 +34,10 @@ CLASS zcl_cust_bp_icf_handler DEFINITION
     METHODS error_json
       IMPORTING iv_text        TYPE string
       RETURNING VALUE(rv_json) TYPE string.
+
+    METHODS to_json
+      IMPORTING is_data        TYPE any
+      RETURNING VALUE(rv_json) TYPE string.
 ENDCLASS.
 
 
@@ -52,8 +56,10 @@ CLASS zcl_cust_bp_icf_handler IMPLEMENTATION.
     DATA(lv_method) = to_upper( server->request->get_header_field( '~request_method' ) ).
 
     CASE determine_action( lv_method ).
-      WHEN zif_cust_bp_types=>c_operation-create. do_create( ).
-      WHEN zif_cust_bp_types=>c_operation-read.   do_read( ).
+      WHEN zif_cust_bp_types=>c_operation-create.
+        do_create( ).
+      WHEN zif_cust_bp_types=>c_operation-read.
+        do_read( ).
       WHEN OTHERS.
         send( iv_status = zif_cust_bp_types=>c_http-not_allowed
               iv_body   = error_json( |HTTP { lv_method } is not supported on this resource| ) ).
@@ -64,8 +70,8 @@ CLASS zcl_cust_bp_icf_handler IMPLEMENTATION.
   METHOD do_create.
     DATA(lv_body) = mo_server->request->get_cdata( ).
     IF lv_body IS INITIAL.
-      send( zif_cust_bp_types=>c_http-bad_request
-            error_json( 'Request body is empty or not valid JSON' ) ).
+      send( iv_status = zif_cust_bp_types=>c_http-bad_request
+            iv_body   = error_json( 'Request body is empty or not valid JSON' ) ).
       RETURN.
     ENDIF.
 
@@ -76,47 +82,43 @@ CLASS zcl_cust_bp_icf_handler IMPLEMENTATION.
                     pretty_name = /ui2/cl_json=>pretty_mode-camel_case
           CHANGING  data        = ls_req ).
       CATCH cx_root.
-        send( zif_cust_bp_types=>c_http-bad_request
-              error_json( 'Request body is empty or not valid JSON' ) ).
+        send( iv_status = zif_cust_bp_types=>c_http-bad_request
+              iv_body   = error_json( 'Request body is empty or not valid JSON' ) ).
         RETURN.
     ENDTRY.
 
+    DATA ls_res TYPE zcust_bp_s_create_res.
     TRY.
-        DATA(ls_res) = NEW zcl_cust_bp_create( )->execute(
-                         is_request  = ls_req
-                         iv_raw_json = lv_body ).
+        ls_res = NEW zcl_cust_bp_create( )->execute( is_request  = ls_req
+                                                     iv_raw_json = lv_body ).
       CATCH cx_root INTO DATA(lx_c).
-        send( zif_cust_bp_types=>c_http-server_error
-              error_json( |Unexpected error: { lx_c->get_text( ) }| ) ).
+        send( iv_status = zif_cust_bp_types=>c_http-server_error
+              iv_body   = error_json( |Unexpected error: { lx_c->get_text( ) }| ) ).
         RETURN.
     ENDTRY.
 
     DATA(lv_code) = COND i(
-      WHEN ls_res-success = abap_true                             THEN zif_cust_bp_types=>c_http-created
-      WHEN line_exists( ls_res-messages[ msgno = '016' ] )        THEN zif_cust_bp_types=>c_http-forbidden
+      WHEN ls_res-success = abap_true                      THEN zif_cust_bp_types=>c_http-created
+      WHEN line_exists( ls_res-messages[ msgno = '016' ] ) THEN zif_cust_bp_types=>c_http-forbidden
       ELSE zif_cust_bp_types=>c_http-unprocessable ).
 
     send( iv_status = lv_code
-          iv_body   = /ui2/cl_json=>serialize( data        = ls_res
-                                               pretty_name = /ui2/cl_json=>pretty_mode-camel_case
-                                               compress    = abap_false ) ).
+          iv_body   = to_json( ls_res ) ).
   ENDMETHOD.
 
 
   METHOD do_read.
     DATA(lv_id) = get_customer_id( ).
     IF lv_id IS INITIAL.
-      send( zif_cust_bp_types=>c_http-bad_request
-            error_json( 'Query parameter customerId is required' ) ).
+      send( iv_status = zif_cust_bp_types=>c_http-bad_request
+            iv_body   = error_json( 'Query parameter customerId is required' ) ).
       RETURN.
     ENDIF.
 
     TRY.
         DATA(ls_res) = NEW zcl_cust_bp_read( )->execute( lv_id ).
-        send( zif_cust_bp_types=>c_http-ok
-              /ui2/cl_json=>serialize( data        = ls_res
-                                       pretty_name = /ui2/cl_json=>pretty_mode-camel_case
-                                       compress    = abap_false ) ).
+        send( iv_status = zif_cust_bp_types=>c_http-ok
+              iv_body   = to_json( ls_res ) ).
 
       CATCH zcx_cust_bp INTO DATA(lx).
         DATA(lv_rc) = COND i(
@@ -131,20 +133,16 @@ CLASS zcl_cust_bp_icf_handler IMPLEMENTATION.
                                    id      = lx->if_t100_message~t100key-msgid
                                    msgno   = lx->if_t100_message~t100key-msgno
                                    message = lx->get_text( ) ) ) ).
-        send( lv_rc
-              /ui2/cl_json=>serialize( data        = ls_err
-                                       pretty_name = /ui2/cl_json=>pretty_mode-camel_case
-                                       compress    = abap_false ) ).
+        send( iv_status = lv_rc
+              iv_body   = to_json( ls_err ) ).
 
       CATCH cx_root INTO DATA(lx_c).
         DATA(ls_e2) = VALUE zcust_bp_s_read_res(
           customer_id = lv_id
           success     = abap_false
           messages    = VALUE #( ( type = 'E' message = |Unexpected error: { lx_c->get_text( ) }| ) ) ).
-        send( zif_cust_bp_types=>c_http-server_error
-              /ui2/cl_json=>serialize( data        = ls_e2
-                                       pretty_name = /ui2/cl_json=>pretty_mode-camel_case
-                                       compress    = abap_false ) ).
+        send( iv_status = zif_cust_bp_types=>c_http-server_error
+              iv_body   = to_json( ls_e2 ) ).
     ENDTRY.
   ENDMETHOD.
 
@@ -163,6 +161,13 @@ CLASS zcl_cust_bp_icf_handler IMPLEMENTATION.
         rv_customer_id = lt_seg[ lines( lt_seg ) ].
       ENDIF.
     ENDIF.
+  ENDMETHOD.
+
+
+  METHOD to_json.
+    rv_json = /ui2/cl_json=>serialize( data        = is_data
+                                       pretty_name = /ui2/cl_json=>pretty_mode-camel_case
+                                       compress    = abap_false ).
   ENDMETHOD.
 
 
@@ -185,12 +190,9 @@ CLASS zcl_cust_bp_icf_handler IMPLEMENTATION.
 
 
   METHOD error_json.
-    rv_json = /ui2/cl_json=>serialize(
-                data        = VALUE zcust_bp_s_create_res(
-                                success  = abap_false
-                                messages = VALUE #( ( type = 'E' message = iv_text ) ) )
-                pretty_name = /ui2/cl_json=>pretty_mode-camel_case
-                compress    = abap_false ).
+    rv_json = to_json( VALUE zcust_bp_s_create_res(
+                         success  = abap_false
+                         messages = VALUE #( ( type = 'E' message = iv_text ) ) ) ).
   ENDMETHOD.
 
 ENDCLASS.
