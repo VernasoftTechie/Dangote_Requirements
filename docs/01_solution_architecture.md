@@ -4,28 +4,28 @@
 
 | # | Requirement | Delivered by |
 |---|---|---|
-| 1 | Create the customer BP from the client's existing data | `POST /sap/bc/zbp_customer` → `ZCL_BP_CUST_CREATE` → `CL_MD_BP_MAINTAIN=>MAINTAIN` |
-| 2 | Read customer data; caller passes only the customer ID | `GET /sap/bc/zbp_customer?customerId=…` → `ZCL_BP_CUST_READ` → `CMD_EI_API=>GET_DATA` |
-| 3 | Log failures with date/time; allow manual re-trigger / re-call | `ZBP_CUST_LOG` + `ZBP_CUST_LOG_REPORT` + `ZCL_BP_CUST_LOG=>reprocess` |
-| 4 | Mandatory custom DDIC payload structure | `ZBP_CUST_S_CREATE_REQ` / `ZBP_CUST_S_READ_RES` and the sub-structures |
+| 1 | Create the customer BP from the client's existing data | `POST /sap/bc/zcust_bp` → `ZCL_CUST_BP_CREATE` → `CL_MD_BP_MAINTAIN=>MAINTAIN` |
+| 2 | Read customer data; caller passes only the customer ID | `GET /sap/bc/zcust_bp?customerId=…` → `ZCL_CUST_BP_READ` → `CMD_EI_API=>GET_DATA` |
+| 3 | Log failures with date/time; allow manual re-trigger / re-call | `ZT_CUST_BP_LOG` + `ZCUST_BP_LOG_REPORT` + `ZCL_CUST_BP_LOG=>reprocess` |
+| 4 | Mandatory custom DDIC payload structure | `ZCUST_BP_S_CREATE_REQ` / `ZCUST_BP_S_READ_RES` and the sub-structures |
 
 Out of scope for this delivery: outbound push to the client system, document
 (DMS/GOS) storage of the `documents[]` entries, and delta/update of an existing
 BP. Hooks are in place (`documents[]` echoed to the response and log;
-`ZCL_BP_CUST_LOG` already generic over direction `I`/`O`).
+`ZCL_CUST_BP_LOG` already generic over direction `I`/`O`).
 
 ## 2. Component flow
 
 ### Create (inbound)
 
 ```
-client ──POST JSON──▶ ICF /sap/bc/zbp_customer
+client ──POST JSON──▶ ICF /sap/bc/zcust_bp
                         │
-                 ZCL_BP_CUST_ICF_HANDLER
+                 ZCL_CUST_BP_ICF_HANDLER
                    • determine_action(POST) → CREATE
-                   • /ui2/cl_json → ZBP_CUST_S_CREATE_REQ
+                   • /ui2/cl_json → ZCUST_BP_S_CREATE_REQ
                         │
-                 ZCL_BP_CUST_CREATE=>execute
+                 ZCL_CUST_BP_CREATE=>execute
                    • validate (mandatory fields, control keys)
                    • idempotency: BU_SORT1 = customerId already? → return existing
                    • resolve_control (defaults)
@@ -34,25 +34,25 @@ client ──POST JSON──▶ ICF /sap/bc/zbp_customer
                    • error?  → BAPI_TRANSACTION_ROLLBACK, log 'E', HTTP 422
                    • ok?     → BAPI_TRANSACTION_COMMIT, resolve keys, log 'S', HTTP 201
                         │
-                 ZCL_BP_CUST_LOG=>record   (own LUW, survives rollback)
+                 ZCL_CUST_BP_LOG=>record   (own LUW, survives rollback)
                         │
-   client ◀──JSON────  ZBP_CUST_S_CREATE_RES { partner, customer, success, messages, logId }
+   client ◀──JSON────  ZCUST_BP_S_CREATE_RES { partner, customer, success, messages, logId }
 ```
 
 ### Read (inbound)
 
 ```
-client ──GET ?customerId──▶ ICF /sap/bc/zbp_customer
-                 ZCL_BP_CUST_ICF_HANDLER  → determine_action(GET) → READ
-                 ZCL_BP_CUST_READ=>execute
+client ──GET ?customerId──▶ ICF /sap/bc/zcust_bp
+                 ZCL_CUST_BP_ICF_HANDLER  → determine_action(GET) → READ
+                 ZCL_CUST_BP_READ=>execute
                    • BUT000-BU_SORT1 = customerId  → PARTNER            (else 404)
                    • BUT000 → PARTNER_GUID → CVI_CUST_LINK → KUNNR      (else 404)
                    • CMD_EI_API=>GET_DATA( is_master_data{ kunnr } )
-                   • ZCL_BP_CUST_MAPPER=>cvi_to_read_res
+                   • ZCL_CUST_BP_MAPPER=>cvi_to_read_res
                         - sales areas / company codes from the CVI image
                         - name / address / tax / created-by from KNA1+ADRC (stable)
                         - roles / ids / industries / banks from BUT100/BUT0ID/BUT0IS/BUT0BK
-   client ◀──JSON──  ZBP_CUST_S_READ_RES
+   client ◀──JSON──  ZCUST_BP_S_READ_RES
 ```
 
 ## 3. Why these building blocks
@@ -70,7 +70,7 @@ client ──GET ?customerId──▶ ICF /sap/bc/zbp_customer
 * **`CMD_EI_API=>GET_DATA`** – returns the full customer image (general + sales
   + company + tax) in one shot; supplemented with direct reads for the
   BP-central attributes it does not carry.
-* **Own-LUW logging** – `ZCL_BP_CUST_LOG=>record` issues its own `COMMIT WORK`
+* **Own-LUW logging** – `ZCL_CUST_BP_LOG=>record` issues its own `COMMIT WORK`
   after the BP `COMMIT`/`ROLLBACK`, so a failed create is still logged with its
   full request payload for re-trigger.
 
@@ -78,10 +78,10 @@ client ──GET ?customerId──▶ ICF /sap/bc/zbp_customer
 
 * Re-`POST` of a `customerId` that already resolves to a BP returns HTTP 200
   with the existing keys and a `W` message (no duplicate BP).
-* `ZBP_CUST_LOG` stores the verbatim request body. `ZCL_BP_CUST_LOG=>reprocess`
+* `ZT_CUST_BP_LOG` stores the verbatim request body. `ZCL_CUST_BP_LOG=>reprocess`
   re-runs it (`iv_write_log = abap_false`, updates the same row, `retry_count++`,
   status `R` on success).
-* `ZBP_CUST_LOG_REPORT`: `P_LOGID` for one entry, `P_REPRO` for every `E` entry
+* `ZCUST_BP_LOG_REPORT`: `P_LOGID` for one entry, `P_REPRO` for every `E` entry
   in the selection (batch-job friendly).
 
 ## 5. Error handling / HTTP status

@@ -4,7 +4,7 @@
 
 1. `SICF` → *Execute* (hierarchy type `SERVICE`).
 2. Navigate to `default_host / sap / bc`.
-3. Right-click `bc` → **New Sub-Element** → name `zbp_customer`.
+3. Right-click `bc` → **New Sub-Element** → name `zcust_bp`.
 4. **Service data** tab
    * *Description*: `Dangote – Customer BP inbound REST API`
 5. **Logon Data** tab
@@ -14,17 +14,17 @@
      production unless the client cannot send Basic/OAuth.
    * *Security*: set **SSL** (`Required`) for productive systems.
 6. **Handler List** tab
-   * Row 1: `ZCL_BP_CUST_ICF_HANDLER`
-7. Save (assign to package **ZSD** / transport).
+   * Row 1: `ZCL_CUST_BP_ICF_HANDLER`
+7. Save (assign to package **ZABAP_UTIL** / transport).
 8. Right-click the new node → **Activate Service**.
 
 ## 2. Endpoints
 
 | Method | URL | Body | Success |
 |---|---|---|---|
-| POST | `/sap/bc/zbp_customer` | `ZBP_CUST_S_CREATE_REQ` JSON | 201 + `ZBP_CUST_S_CREATE_RES` |
-| GET | `/sap/bc/zbp_customer?customerId=CUST-000123` | – | 200 + `ZBP_CUST_S_READ_RES` |
-| GET | `/sap/bc/zbp_customer/CUST-000123` | – | 200 + `ZBP_CUST_S_READ_RES` |
+| POST | `/sap/bc/zcust_bp` | `ZCUST_BP_S_CREATE_REQ` JSON | 201 + `ZCUST_BP_S_CREATE_RES` |
+| GET | `/sap/bc/zcust_bp?customerId=CUST-000123` | – | 200 + `ZCUST_BP_S_READ_RES` |
+| GET | `/sap/bc/zcust_bp/CUST-000123` | – | 200 + `ZCUST_BP_S_READ_RES` |
 
 `GET` accepts the id either as query parameter `customerId` **or** as the last
 path segment.
@@ -45,25 +45,25 @@ path segment.
 
 ```bash
 # create
-curl -sk -X POST "https://<host>:<https_port>/sap/bc/zbp_customer" \
+curl -sk -X POST "https://<host>:<https_port>/sap/bc/zcust_bp" \
   -u "<TECH_USER>:<PWD>" \
   -H "Content-Type: application/json" \
   --data @docs/samples/create_request.json | jq
 
 # read
-curl -sk "https://<host>:<https_port>/sap/bc/zbp_customer?customerId=CUST-000123" \
+curl -sk "https://<host>:<https_port>/sap/bc/zcust_bp?customerId=CUST-000123" \
   -u "<TECH_USER>:<PWD>" | jq
 ```
 
 `SMICM` → *Goto → Services* for the port. Trace with `SICF` → *Recording* or
 transaction ` SRT_UTIL` / `SICF` error log; application errors are in
-`ZBP_CUST_LOG` (report `ZBP_CUST_LOG_REPORT`).
+`ZT_CUST_BP_LOG` (report `ZCUST_BP_LOG_REPORT`).
 
 ## 5. Operations
 
-* **Monitor**: `ZBP_CUST_LOG_REPORT`, status = `E`.
+* **Monitor**: `ZCUST_BP_LOG_REPORT`, status = `E`.
 * **Re-trigger one**: report → `P_LOGID` = the log id → execute.
 * **Re-trigger a batch**: report → set date/customer selection → tick
   `P_REPRO` → execute (schedulable in `SM36`).
-* **Housekeeping**: add an archiving/deletion job for `ZBP_CUST_LOG` /
-  `ZBP_CUST_LOG_MSG` older than the retention period (not shipped).
+* **Housekeeping**: add an archiving/deletion job for `ZT_CUST_BP_LOG` /
+  `ZT_CUST_BP_LOG_MSG` older than the retention period (not shipped).

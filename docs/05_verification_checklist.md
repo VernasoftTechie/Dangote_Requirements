@@ -5,7 +5,7 @@ The generic ABAP is written against the well‑documented shapes of
 shifted across S/4 releases. Open each type in **SE11** and confirm, adjusting
 the marked lines. All marked lines carry a `VERIFY NODE` comment.
 
-## A. `ZCL_BP_CUST_CREATE=>build_cvi` — `CVIS_EI_EXTERN`
+## A. `ZCL_CUST_BP_CREATE=>build_cvi` — `CVIS_EI_EXTERN`
 
 | # | Path used | Check |
 |---|---|---|
@@ -36,7 +36,7 @@ the marked lines. All marked lines carry a `VERIFY NODE` comment.
 | B3 | No implicit commit → `BAPI_TRANSACTION_COMMIT` / `_ROLLBACK` as coded |
 | B4 | Optional: add `CL_MD_BP_MAINTAIN=>VALIDATE_SINGLE` before `MAINTAIN` for a dry run |
 
-## C. `ZCL_BP_CUST_READ` — `CMD_EI_API=>GET_DATA`
+## C. `ZCL_CUST_BP_READ` — `CMD_EI_API=>GET_DATA`
 
 | # | Path used | Check |
 |---|---|---|
@@ -46,7 +46,7 @@ the marked lines. All marked lines carry a `VERIFY NODE` comment.
 | C4 | `central_data-company_data-company` line `data_key-bukrs`, `data-akont` | company read |
 | C5 | If `CMD_EI_API=>GET_DATA` is not present, switch to `CMD_EI_API_EXTRACT=>GET_DATA` (same params) | fallback |
 
-## D. `ZCL_BP_CUST_MAPPER` — direct table reads (stable, low risk)
+## D. `ZCL_CUST_BP_MAPPER` — direct table reads (stable, low risk)
 
 | # | Check |
 |---|---|
@@ -70,6 +70,6 @@ found.
    `FLCU01`, address, tax number, identification present.
 4. `GET ?customerId=CUST-000123` → 200, payload matches.
 5. `POST` the same again → 200 + "already exists" warning, no new BP.
-6. Force an error (bad `custAcctGrp`) → 422, row in `ZBP_CUST_LOG` status `E`.
-7. `ZBP_CUST_LOG_REPORT` → `P_LOGID` of that row → fix Customizing → execute →
+6. Force an error (bad `custAcctGrp`) → 422, row in `ZT_CUST_BP_LOG` status `E`.
+7. `ZCUST_BP_LOG_REPORT` → `P_LOGID` of that row → fix Customizing → execute →
    status `R`, `retry_count = 1`.

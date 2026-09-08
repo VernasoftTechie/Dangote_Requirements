@@ -3,31 +3,34 @@
   "applicationId": "076b0117-0154-7561-b0f8-8785ce57d561",
   "status": "Approved",
   "approvedAt": "2026-08-19T10:15:00Z",
-  "companyInfo": {
-    "product": ["Oil and Gas"],
-    "gradeType": ["Domestic"],
-    "businessName": "Acme Ltd",
-    "tinVatRegNo": "12345678-0001",
-    "natureOfBusiness": "Manufacturing",
-    "businessType": "Limited Liability Company",
-    "companyRegNo": "RC123456",
-    "hqAddress": "1 Marina Road, Lagos",
-    "firstName": "Ada",
-    "lastName": "Lovelace",
-    "email": "ada@acme.com",
-    "mobile": "+2348012345678"
-  },
+
+  "businessName": "Acme Ltd",
+  "tinVatRegNo": "12345678-0001",
+  "natureOfBusiness": "Manufacturing",
+  "businessType": "Limited Liability Company",
+  "companyRegNo": "RC123456",
+  "hqAddress": "1 Marina Road, Lagos",
+  "firstName": "Ada",
+  "lastName": "Lovelace",
+  "email": "ada@acme.com",
+  "mobile": "+2348012345678",
+  "product": ["Oil and Gas"],
+  "gradeType": ["Domestic"],
+
+  "bpGrouping": "BP02",
+  "custAcctGrp": "0001",
+  "legalForm": "0002",
+  "bpType": "Z1",
+  "industrySystem": "0001",
+  "industryKeys": ["0800"],
+  "taxTypeTin": "ZTIN",
+  "idTypeReg": "ZCRN",
+  "defaultCountry": "NG",
+  "createFi": false,
+  "createSales": false,
+
   "documents": [
     { "fieldId": "nda", "name": "Non-Disclosure Agreement", "path": "CUST-000123/nda/Non-Disclosure-Agreement.pdf/final", "contentType": "application/pdf" },
     { "fieldId": "cac", "name": "CAC Certificate", "path": "CUST-000123/cac/CAC-Certificate.pdf/final", "contentType": "application/pdf" }
-  ],
-  "control": {
-    "bpGrouping": "BP02",
-    "custAcctGrp": "0001",
-    "taxTypeTin": "ZTIN",
-    "idTypeReg": "ZCRN",
-    "industrySystem": "0001",
-    "industryKeys": ["0800"],
-    "defaultCountry": "NG"
-  }
+  ]
 }
