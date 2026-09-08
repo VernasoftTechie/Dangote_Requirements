@@ -71,7 +71,7 @@ CLASS zcl_cust_bp_create DEFINITION
     METHODS write_log
       IMPORTING is_request  TYPE zcust_bp_s_create_req
                 iv_raw_json TYPE string
-                iv_status   TYPE c LENGTH 1
+                iv_status   TYPE zcust_bp_flag
                 iv_http     TYPE i
       CHANGING  cs_result   TYPE zcust_bp_s_create_res.
 
@@ -201,12 +201,12 @@ CLASS zcl_cust_bp_create IMPLEMENTATION.
 
 
   METHOD check_authorization.
-    AUTHORITY-CHECK OBJECT zif_cust_bp_types=>c_auth-object
+    AUTHORITY-CHECK OBJECT 'B_BUPA_RLT'
       ID 'RLTYP' FIELD zif_cust_bp_types=>c_default-partner_role
-      ID 'ACTVT' FIELD zif_cust_bp_types=>c_auth-actvt_01.
+      ID 'ACTVT' FIELD '01'.
     IF sy-subrc <> 0.
       RAISE EXCEPTION TYPE zcx_cust_bp
-        MESSAGE e016(zmsg_cust_bp) WITH zif_cust_bp_types=>c_auth-object.
+        MESSAGE e016(zmsg_cust_bp) WITH zif_cust_bp_types=>c_auth_object.
     ENDIF.
   ENDMETHOD.
 

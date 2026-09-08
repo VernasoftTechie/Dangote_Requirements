@@ -35,17 +35,17 @@ INTERFACE zif_cust_bp_types
 
   CONSTANTS:
     BEGIN OF c_direction,
-      inbound  TYPE c LENGTH 1 VALUE 'I',
-      outbound TYPE c LENGTH 1 VALUE 'O',
+      inbound  TYPE zcust_bp_flag VALUE 'I',
+      outbound TYPE zcust_bp_flag VALUE 'O',
     END OF c_direction.
 
   "! Values of ZCUST_BP_LOG-STATUS
   CONSTANTS:
     BEGIN OF c_log_status,
-      success     TYPE c LENGTH 1 VALUE 'S',
-      error       TYPE c LENGTH 1 VALUE 'E',
-      reprocessed TYPE c LENGTH 1 VALUE 'R',
-      pending     TYPE c LENGTH 1 VALUE 'P',
+      success     TYPE zcust_bp_flag VALUE 'S',
+      error       TYPE zcust_bp_flag VALUE 'E',
+      reprocessed TYPE zcust_bp_flag VALUE 'R',
+      pending     TYPE zcust_bp_flag VALUE 'P',
     END OF c_log_status.
 
   CONSTANTS:
@@ -58,24 +58,19 @@ INTERFACE zif_cust_bp_types
   "! CVI task codes ( BUS_EI_OBJECT_TASK / CMDS_EI_...-TASK ).
   CONSTANTS:
     BEGIN OF c_task,
-      insert  TYPE c LENGTH 1 VALUE 'I',
-      update  TYPE c LENGTH 1 VALUE 'U',
-      modify  TYPE c LENGTH 1 VALUE 'M',
-      delete  TYPE c LENGTH 1 VALUE 'D',
-      current TYPE c LENGTH 1 VALUE 'C',
+      insert  TYPE zcust_bp_flag VALUE 'I',
+      update  TYPE zcust_bp_flag VALUE 'U',
+      modify  TYPE zcust_bp_flag VALUE 'M',
+      delete  TYPE zcust_bp_flag VALUE 'D',
+      current TYPE zcust_bp_flag VALUE 'C',
     END OF c_task.
 
   "! Message class of this component.
   CONSTANTS c_msg_class TYPE symsgid VALUE 'ZMSG_CUST_BP'.
 
-  "! Authorization object checked before a create ( adaptation point -
-  "! replace with the client's object / values ).
-  CONSTANTS:
-    BEGIN OF c_auth,
-      object   TYPE c LENGTH 10 VALUE 'B_BUPA_RLT',
-      actvt_01 TYPE c LENGTH 2  VALUE '01',
-      actvt_03 TYPE c LENGTH 2  VALUE '03',
-    END OF c_auth.
+  "! Authorization object checked on create / read ( adaptation point -
+  "! replace with the client's object / values in the classes ).
+  CONSTANTS c_auth_object TYPE zcust_bp_id VALUE 'B_BUPA_RLT'.
 
   "--------------------------------------------------------------------
   " Default control values  ( ADAPTATION POINTS )

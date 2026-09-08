@@ -19,12 +19,12 @@ CLASS zcl_cust_bp_read IMPLEMENTATION.
 
   METHOD execute.
     " ---- 0. display authorization ----
-    AUTHORITY-CHECK OBJECT zif_cust_bp_types=>c_auth-object
+    AUTHORITY-CHECK OBJECT 'B_BUPA_RLT'
       ID 'RLTYP' FIELD zif_cust_bp_types=>c_default-partner_role
-      ID 'ACTVT' FIELD zif_cust_bp_types=>c_auth-actvt_03.
+      ID 'ACTVT' FIELD '03'.
     IF sy-subrc <> 0.
       RAISE EXCEPTION TYPE zcx_cust_bp
-        MESSAGE e020(zmsg_cust_bp) WITH zif_cust_bp_types=>c_auth-object.
+        MESSAGE e020(zmsg_cust_bp) WITH zif_cust_bp_types=>c_auth_object.
     ENDIF.
 
     " ---- 1. external id -> BP ----
