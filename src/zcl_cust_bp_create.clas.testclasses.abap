@@ -48,8 +48,8 @@ CLASS ltcl_create IMPLEMENTATION.
       last_name         = 'Lovelace'
       email             = 'ada@acme.com'
       mobile            = '+2348012345678'
-      product           = VALUE #( ( `Oil and Gas` ) )
-      grade_type        = VALUE #( ( `Domestic` ) )
+      product           = VALUE #( ( CONV zcust_bp_text( 'Oil and Gas' ) ) )
+      grade_type        = VALUE #( ( CONV zcust_bp_text( 'Domestic' ) ) )
       bp_grouping       = 'BP02'
       cust_acct_grp     = '0001'
       tax_type_tin      = 'ZTIN'

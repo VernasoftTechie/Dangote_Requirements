@@ -265,11 +265,9 @@ CLASS zcl_cust_bp_create IMPLEMENTATION.
     "================================================================
     ls_bp-partner-header-object_task = zif_cust_bp_types=>c_task-insert.
 
-    " ---- category + grouping ----
-    ls_bp-partner-central_data-common-data-bp_control-category  = ls_ctrl-bp_category.
-    ls_bp-partner-central_data-common-data-bp_control-grouping  = ls_ctrl-bp_grouping.
-    ls_bp-partner-central_data-common-datax-bp_control-category = abap_true.
-    ls_bp-partner-central_data-common-datax-bp_control-grouping = abap_true.
+    " ---- category + grouping ( bp_control has no datax mirror ) ----
+    ls_bp-partner-central_data-common-data-bp_control-category = ls_ctrl-bp_category.
+    ls_bp-partner-central_data-common-data-bp_control-grouping = ls_ctrl-bp_grouping.
 
     " ---- organisation name ( split at 40 ) ----
     ls_bp-partner-central_data-common-data-bp_organization-name1  = is_request-business_name(40).
@@ -428,24 +426,20 @@ CLASS zcl_cust_bp_create IMPLEMENTATION.
 
 
   METHOD has_error.
-    LOOP AT it_return INTO DATA(ls_obj).
-      LOOP AT ls_obj-object_msg TRANSPORTING NO FIELDS WHERE type = 'E' OR type = 'A'.
-        rv_error = abap_true.
-        RETURN.
-      ENDLOOP.
+    LOOP AT it_return TRANSPORTING NO FIELDS WHERE type = 'E' OR type = 'A'.
+      rv_error = abap_true.
+      RETURN.
     ENDLOOP.
   ENDMETHOD.
 
 
   METHOD map_return.
-    LOOP AT it_return INTO DATA(ls_obj).
-      LOOP AT ls_obj-object_msg INTO DATA(ls_msg).
-        APPEND VALUE #( type    = ls_msg-type
-                        id      = ls_msg-id
-                        msgno   = ls_msg-number
-                        message = ls_msg-message
-                        field   = ls_msg-field ) TO rt_message.
-      ENDLOOP.
+    LOOP AT it_return INTO DATA(ls_msg).
+      APPEND VALUE #( type    = ls_msg-type
+                      id      = ls_msg-id
+                      msgno   = ls_msg-number
+                      message = ls_msg-message
+                      field   = ls_msg-field ) TO rt_message.
     ENDLOOP.
   ENDMETHOD.
 
