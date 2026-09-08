@@ -2,11 +2,17 @@
 "! Maps the JSON payload ( ZCUST_BP_S_CREATE_REQ ) to the CVI structure
 "! CVIS_EI_EXTERN and creates an <em>organisation</em> business partner with
 "! the customer role via <em>CL_MD_BP_MAINTAIN=&gt;MAINTAIN</em> ( internal
-"! number assignment ). The external <em>customerId</em> is stored in search
-"! term 1 ( BUT000-BU_SORT1 ); <em>applicationId</em> in search term 2.
+"! number assignment ).
 "!
-"! Deep component paths in CVIS_EI_EXTERN are release dependent - each is
-"! flagged "VERIFY NODE". See docs/05_verification_checklist.md.
+"! Flow: authorize -&gt; validate -&gt; idempotency check -&gt;
+"! <em>CL_MD_BP_MAINTAIN=&gt;VALIDATE_SINGLE</em> ( simulation, no update ) -&gt;
+"! only if the simulation is clean: <em>MAINTAIN</em> + <em>BAPI_TRANSACTION_COMMIT</em>.
+"! Every branch writes ZT_CUST_BP_LOG and returns <em>success</em> + <em>messages</em>.
+"!
+"! The external <em>customerId</em> is stored in search term 1
+"! ( BUT000-BU_SORT1 ); <em>applicationId</em> in search term 2. Deep component
+"! paths in CVIS_EI_EXTERN are release dependent - flagged "VERIFY NODE";
+"! see docs/05_verification_checklist.md.
 CLASS zcl_cust_bp_create DEFINITION
   PUBLIC
   FINAL
@@ -40,6 +46,12 @@ CLASS zcl_cust_bp_create DEFINITION
 
     METHODS warn
       IMPORTING iv_text TYPE string.
+
+    "! Simulation via CL_MD_BP_MAINTAIN=>VALIDATE_SINGLE - no database update.
+    METHODS simulate
+      IMPORTING it_data      TYPE cvis_ei_extern_t
+      EXPORTING et_message   TYPE zcust_bp_t_message
+                ev_has_error TYPE abap_bool.
 
     METHODS has_error
       IMPORTING it_return       TYPE bapiretm
@@ -93,16 +105,38 @@ CLASS zcl_cust_bp_create IMPLEMENTATION.
           RETURN.
         ENDIF.
 
-        " ---- create ----
-        DATA(lt_data)  = build_cvi( is_request ).
-        DATA lt_return TYPE bapiretm.
+        DATA(lt_data) = build_cvi( is_request ).
 
+        " ---- 1. simulation ( VALIDATE_SINGLE ) - no update ----
+        simulate( EXPORTING it_data      = lt_data
+                  IMPORTING et_message   = DATA(lt_sim_msg)
+                            ev_has_error = DATA(lv_sim_error) ).
+        APPEND LINES OF lt_sim_msg TO rs_result-messages.
+        APPEND LINES OF mt_warning TO rs_result-messages.
+
+        IF lv_sim_error = abap_true.
+          rs_result-success = abap_false.
+          APPEND VALUE #( type    = 'E'
+                          id      = zif_cust_bp_types=>c_msg_class
+                          number  = '019'
+                          message = |Simulation reported errors for external ID { is_request-customer_id } - nothing was created| )
+                 TO rs_result-messages.
+          IF iv_write_log = abap_true.
+            write_log( EXPORTING is_request  = is_request
+                                 iv_raw_json = iv_raw_json
+                                 iv_status   = zif_cust_bp_types=>c_log_status-error
+                                 iv_http     = zif_cust_bp_types=>c_http-unprocessable
+                       CHANGING  cs_result   = rs_result ).
+          ENDIF.
+          RETURN.
+        ENDIF.
+
+        " ---- 2. real maintain ----
+        DATA lt_return TYPE bapiretm.
         cl_md_bp_maintain=>maintain(
           EXPORTING i_data   = lt_data
           IMPORTING e_return = lt_return ).
-
-        rs_result-messages = map_return( lt_return ).
-        APPEND LINES OF mt_warning TO rs_result-messages.
+        APPEND LINES OF map_return( lt_return ) TO rs_result-messages.
 
         IF has_error( lt_return ) = abap_true.
           CALL FUNCTION 'BAPI_TRANSACTION_ROLLBACK'.
@@ -124,7 +158,6 @@ CLASS zcl_cust_bp_create IMPLEMENTATION.
                            CHANGING  cs_result      = rs_result ).
         rs_result-success = abap_true.
 
-        " ---- guarantee an outcome message for the caller ----
         IF NOT line_exists( rs_result-messages[ type = 'S' ] )
            AND NOT line_exists( rs_result-messages[ type = 'I' ] ).
           INSERT VALUE #( type    = 'S'
@@ -363,6 +396,31 @@ CLASS zcl_cust_bp_create IMPLEMENTATION.
     ENDIF.
 
     APPEND ls_bp TO rt_data.
+  ENDMETHOD.
+
+
+  METHOD simulate.
+    CLEAR: et_message, ev_has_error.
+    IF it_data IS INITIAL.
+      RETURN.
+    ENDIF.
+
+    " VALIDATE_SINGLE takes a single CVIS_EI_EXTERN and never updates the DB.
+    " et_return_map is MDG_BS_BP_MSGMAP_T ( BAPIRET2-compatible message rows ).
+    cl_md_bp_maintain=>validate_single(
+      EXPORTING i_data        = it_data[ 1 ]
+      IMPORTING et_return_map = DATA(lt_map) ).
+
+    LOOP AT lt_map INTO DATA(ls_map).
+      APPEND VALUE #( type    = ls_map-type
+                      id      = ls_map-id
+                      number  = ls_map-number
+                      message = ls_map-message
+                      field   = ls_map-field ) TO et_message.
+      IF ls_map-type = 'E' OR ls_map-type = 'A'.
+        ev_has_error = abap_true.
+      ENDIF.
+    ENDLOOP.
   ENDMETHOD.
 
 

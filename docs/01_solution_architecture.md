@@ -26,10 +26,13 @@ client ──POST JSON──▶ ICF /sap/bc/zcust_bp
                    • /ui2/cl_json → ZCUST_BP_S_CREATE_REQ
                         │
                  ZCL_CUST_BP_CREATE=>execute
+                   • check_authorization (B_BUPA_RLT, ACTVT 01)
                    • validate (mandatory fields, control keys)
                    • idempotency: BU_SORT1 = customerId already? → return existing
                    • resolve_control (defaults)
                    • build_cvi  → CVIS_EI_EXTERN_T           (pure, unit-tested)
+                   • SIMULATE: CL_MD_BP_MAINTAIN=>VALIDATE_SINGLE (no DB update)
+                       error? → log 'E', HTTP 422, RETURN   (nothing created)
                    • CL_MD_BP_MAINTAIN=>MAINTAIN
                    • error?  → BAPI_TRANSACTION_ROLLBACK, log 'E', HTTP 422
                    • ok?     → BAPI_TRANSACTION_COMMIT, resolve keys, log 'S', HTTP 201

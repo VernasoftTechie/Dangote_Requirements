@@ -18,6 +18,7 @@ INTERFACE zif_cust_bp_types
       ok            TYPE i VALUE 200,
       created       TYPE i VALUE 201,
       bad_request   TYPE i VALUE 400,
+      forbidden     TYPE i VALUE 403,
       not_found     TYPE i VALUE 404,
       not_allowed   TYPE i VALUE 405,
       unprocessable TYPE i VALUE 422,

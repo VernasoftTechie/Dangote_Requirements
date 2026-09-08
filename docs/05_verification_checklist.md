@@ -27,24 +27,24 @@ the marked lines. All marked lines carry a `VERIFY NODE` comment.
 | A16 | `customer-central_data-sales_data-sales` line `task`, `data_key-{vkorg,vtweg,spart}` | sales node |
 | A17 | `customer-central_data-company_data-company` line `task`, `data_key-bukrs`, `data-akont` (+ `datax`) | company-code node |
 
-## B. `CL_MD_BP_MAINTAIN=>MAINTAIN`
+## B. `CL_MD_BP_MAINTAIN` — `VALIDATE_SINGLE` (simulate) + `MAINTAIN`
 
 | # | Check |
 |---|---|
-| B1 | Importing param name is `I_DATA` type `CVIS_EI_EXTERN_T` |
-| B2 | Exporting param name is `E_RETURN` type `BAPIRETM` (table; line has `OBJECT_MSG` sub-table) |
-| B3 | No implicit commit → `BAPI_TRANSACTION_COMMIT` / `_ROLLBACK` as coded |
-| B4 | Optional: add `CL_MD_BP_MAINTAIN=>VALIDATE_SINGLE` before `MAINTAIN` for a dry run |
+| B1 | `MAINTAIN`: importing `I_DATA` type `CVIS_EI_EXTERN_T`, exporting `E_RETURN` type `BAPIRETM` (table; line has `OBJECT_MSG` sub-table) |
+| B2 | `VALIDATE_SINGLE`: importing `I_DATA` type `CVIS_EI_EXTERN` (**single**, not table), exporting `ET_RETURN_MAP` type `MDG_BS_BP_MSGMAP_T` |
+| B3 | `MDG_BS_BP_MSGMAP` carries BAPIRET2-style fields (`TYPE`, `ID`, `NUMBER`, `MESSAGE`, `FIELD`). If the field names differ, adjust `simulate( )` in `ZCL_CUST_BP_CREATE` — worst case the simulation misses an error and the real `MAINTAIN` still catches it (rollback + 422) |
+| B4 | Neither method commits → `BAPI_TRANSACTION_COMMIT` / `_ROLLBACK` as coded; `VALIDATE_SINGLE` never updates the DB |
 
-## C. `ZCL_CUST_BP_READ` — `CMD_EI_API=>GET_DATA`
+## C. `ZCL_CUST_BP_READ` — `CMD_EI_API_EXTRACT=>GET_DATA`
 
 | # | Path used | Check |
 |---|---|---|
-| C1 | `IS_MASTER_DATA` type `CMDS_EI_MAIN`, `ES_MASTER_DATA` type `CMDS_EI_MAIN`, `ES_ERROR` type `CVIS_MESSAGE` | signature |
+| C1 | `GET_DATA` is on `CMD_EI_API_EXTRACT` (not `CMD_EI_API`): `IS_MASTER_DATA` / `ES_MASTER_DATA` type `CMDS_EI_MAIN`, `ES_ERROR` type `CVIS_MESSAGE` | signature |
 | C2 | `cmds_ei_main-customers` line `header-object_instance-kunnr`, `header-object_task = 'M'` | key passing |
-| C3 | `central_data-sales_data-sales` line `data_key-{vkorg,vtweg,spart}` | sales read |
-| C4 | `central_data-company_data-company` line `data_key-bukrs`, `data-akont` | company read |
-| C5 | If `CMD_EI_API=>GET_DATA` is not present, switch to `CMD_EI_API_EXTRACT=>GET_DATA` (same params) | fallback |
+| C3 | `cmds_ei_extern-sales_data-sales` line `data_key-{vkorg,vtweg,spart}` (**not** under `central_data`) | sales read |
+| C4 | `cmds_ei_extern-company_data-company` line `data_key-bukrs`, `data-akont` (**not** under `central_data`) | company read |
+| C5 | `CMD_EI_API=>INITIALIZE` before the read (clears the buffer → read from DB) | |
 
 ## D. `ZCL_CUST_BP_MAPPER` — direct table reads (stable, low risk)
 

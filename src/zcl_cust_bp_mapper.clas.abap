@@ -131,9 +131,10 @@ CLASS zcl_cust_bp_mapper IMPLEMENTATION.
       RETURN.
     ENDIF.
 
-    SELECT SINGLE k~name1, k~name2, k~stcd1, k~erdat, k~ernam, k~adrnr,
+    SELECT SINGLE k~name1, k~name2, k~erdat, k~ernam, k~adrnr,
+                  k~stcd1, k~stcd2, k~stcd3, k~stcd4, k~stcd5, k~stceg,
                   a~street, a~house_num1, a~city1, a~post_code1,
-                  a~region, a~country
+                  a~region, a~country, a~name_co
       FROM kna1 AS k
       LEFT OUTER JOIN adrc AS a ON a~addrnumber = k~adrnr
       INTO @DATA(ls_k)
@@ -144,6 +145,7 @@ CLASS zcl_cust_bp_mapper IMPLEMENTATION.
 
     cs_result-org_name1       = ls_k-name1.
     cs_result-org_name2       = ls_k-name2.
+    cs_result-contact_name    = ls_k-name_co.
     cs_result-addr_street     = ls_k-street.
     cs_result-addr_house_no   = ls_k-house_num1.
     cs_result-addr_city       = ls_k-city1.
@@ -162,14 +164,19 @@ CLASS zcl_cust_bp_mapper IMPLEMENTATION.
         WHERE addrnumber = @ls_k-adrnr AND flgdefault = @abap_true.
     ENDIF.
 
-    IF ls_k-stcd1 IS NOT INITIAL.
-      APPEND VALUE #( tax_type = 'STCD1' tax_number = ls_k-stcd1 ) TO cs_result-tax_numbers.
-    ENDIF.
+    " tax numbers as held on the customer master ( category -> STCDx is
+    " Customizing-driven, view TFKTAXNUMTYPE ); we echo each populated field.
+    IF ls_k-stcd1 IS NOT INITIAL. APPEND VALUE #( tax_type = 'STCD1' tax_number = ls_k-stcd1 ) TO cs_result-tax_numbers. ENDIF.
+    IF ls_k-stcd2 IS NOT INITIAL. APPEND VALUE #( tax_type = 'STCD2' tax_number = ls_k-stcd2 ) TO cs_result-tax_numbers. ENDIF.
+    IF ls_k-stcd3 IS NOT INITIAL. APPEND VALUE #( tax_type = 'STCD3' tax_number = ls_k-stcd3 ) TO cs_result-tax_numbers. ENDIF.
+    IF ls_k-stcd4 IS NOT INITIAL. APPEND VALUE #( tax_type = 'STCD4' tax_number = ls_k-stcd4 ) TO cs_result-tax_numbers. ENDIF.
+    IF ls_k-stcd5 IS NOT INITIAL. APPEND VALUE #( tax_type = 'STCD5' tax_number = ls_k-stcd5 ) TO cs_result-tax_numbers. ENDIF.
+    IF ls_k-stceg IS NOT INITIAL. APPEND VALUE #( tax_type = 'STCEG' tax_number = ls_k-stceg ) TO cs_result-tax_numbers. ENDIF.
   ENDMETHOD.
 
 
-  METHOD enrich_from_bp.
-    SELECT SINGLE partner_guid, type, bu_group, bpkind,
+    " BUT000-LEGAL_ENTY = "BP: Legal form of organization" (data elem BU_LEGENT)
+    SELECT SINGLE partner_guid, type, bu_group, bpkind, legal_enty,
                   bu_sort1, bu_sort2, name_org1, name_org2
       FROM but000
       INTO @DATA(ls_bp)
@@ -179,6 +186,7 @@ CLASS zcl_cust_bp_mapper IMPLEMENTATION.
       cs_result-bp_category  = ls_bp-type.
       cs_result-bp_grouping  = ls_bp-bu_group.
       cs_result-bp_type      = ls_bp-bpkind.
+      cs_result-legal_form   = ls_bp-legal_enty.
       cs_result-search_term1 = ls_bp-bu_sort1.
       cs_result-search_term2 = ls_bp-bu_sort2.
       IF cs_result-org_name1 IS INITIAL.

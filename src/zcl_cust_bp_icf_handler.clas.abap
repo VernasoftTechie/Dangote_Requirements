@@ -81,19 +81,25 @@ CLASS zcl_cust_bp_icf_handler IMPLEMENTATION.
         RETURN.
     ENDTRY.
 
-    DATA(ls_res) = NEW zcl_cust_bp_create( )->execute(
-                     is_request = ls_req
-                     iv_raw_json = lv_body ).
+    TRY.
+        DATA(ls_res) = NEW zcl_cust_bp_create( )->execute(
+                         is_request  = ls_req
+                         iv_raw_json = lv_body ).
+      CATCH cx_root INTO DATA(lx_c).
+        send( zif_cust_bp_types=>c_http-server_error
+              error_json( |Unexpected error: { lx_c->get_text( ) }| ) ).
+        RETURN.
+    ENDTRY.
 
-    DATA(lv_out) = /ui2/cl_json=>serialize(
-                     data        = ls_res
-                     pretty_name = /ui2/cl_json=>pretty_mode-camel_case
-                     compress    = abap_false ).
+    DATA(lv_code) = COND i(
+      WHEN ls_res-success = abap_true                             THEN zif_cust_bp_types=>c_http-created
+      WHEN line_exists( ls_res-messages[ number = '016' ] )       THEN zif_cust_bp_types=>c_http-forbidden
+      ELSE zif_cust_bp_types=>c_http-unprocessable ).
 
-    send( iv_status = COND #( WHEN ls_res-success = abap_true
-                              THEN zif_cust_bp_types=>c_http-created
-                              ELSE zif_cust_bp_types=>c_http-unprocessable )
-          iv_body   = lv_out ).
+    send( iv_status = lv_code
+          iv_body   = /ui2/cl_json=>serialize( data        = ls_res
+                                               pretty_name = /ui2/cl_json=>pretty_mode-camel_case
+                                               compress    = abap_false ) ).
   ENDMETHOD.
 
 
@@ -113,20 +119,30 @@ CLASS zcl_cust_bp_icf_handler IMPLEMENTATION.
                                        compress    = abap_false ) ).
 
       CATCH zcx_cust_bp INTO DATA(lx).
-        DATA(lv_code) = COND i(
+        DATA(lv_rc) = COND i(
           WHEN lx->if_t100_message~t100key-msgno = '006'
-            OR lx->if_t100_message~t100key-msgno = '007'
-          THEN zif_cust_bp_types=>c_http-not_found
+            OR lx->if_t100_message~t100key-msgno = '007' THEN zif_cust_bp_types=>c_http-not_found
+          WHEN lx->if_t100_message~t100key-msgno = '020' THEN zif_cust_bp_types=>c_http-forbidden
           ELSE lx->http_status ).
         DATA(ls_err) = VALUE zcust_bp_s_read_res(
           customer_id = lv_id
           success     = abap_false
-          messages    = VALUE #( ( type   = 'E'
-                                   id     = lx->if_t100_message~t100key-msgid
-                                   number = lx->if_t100_message~t100key-msgno
+          messages    = VALUE #( ( type    = 'E'
+                                   id      = lx->if_t100_message~t100key-msgid
+                                   number  = lx->if_t100_message~t100key-msgno
                                    message = lx->get_text( ) ) ) ).
-        send( lv_code
+        send( lv_rc
               /ui2/cl_json=>serialize( data        = ls_err
+                                       pretty_name = /ui2/cl_json=>pretty_mode-camel_case
+                                       compress    = abap_false ) ).
+
+      CATCH cx_root INTO DATA(lx_c).
+        DATA(ls_e2) = VALUE zcust_bp_s_read_res(
+          customer_id = lv_id
+          success     = abap_false
+          messages    = VALUE #( ( type = 'E' message = |Unexpected error: { lx_c->get_text( ) }| ) ) ).
+        send( zif_cust_bp_types=>c_http-server_error
+              /ui2/cl_json=>serialize( data        = ls_e2
                                        pretty_name = /ui2/cl_json=>pretty_mode-camel_case
                                        compress    = abap_false ) ).
     ENDTRY.
@@ -159,6 +175,7 @@ CLASS zcl_cust_bp_icf_handler IMPLEMENTATION.
                  WHEN zif_cust_bp_types=>c_http-ok            THEN 'OK'
                  WHEN zif_cust_bp_types=>c_http-created        THEN 'Created'
                  WHEN zif_cust_bp_types=>c_http-bad_request    THEN 'Bad Request'
+                 WHEN zif_cust_bp_types=>c_http-forbidden      THEN 'Forbidden'
                  WHEN zif_cust_bp_types=>c_http-not_found      THEN 'Not Found'
                  WHEN zif_cust_bp_types=>c_http-not_allowed    THEN 'Method Not Allowed'
                  WHEN zif_cust_bp_types=>c_http-unprocessable  THEN 'Unprocessable Entity'

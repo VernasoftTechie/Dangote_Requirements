@@ -18,6 +18,15 @@ ENDCLASS.
 CLASS zcl_cust_bp_read IMPLEMENTATION.
 
   METHOD execute.
+    " ---- 0. display authorization ----
+    AUTHORITY-CHECK OBJECT zif_cust_bp_types=>c_auth-object
+      ID 'RLTYP' FIELD zif_cust_bp_types=>c_default-partner_role
+      ID 'ACTVT' FIELD zif_cust_bp_types=>c_auth-actvt_03.
+    IF sy-subrc <> 0.
+      RAISE EXCEPTION TYPE zcx_cust_bp
+        MESSAGE e020(zmsg_cust_bp) WITH zif_cust_bp_types=>c_auth-object.
+    ENDIF.
+
     " ---- 1. external id -> BP ----
     DATA(lv_partner) = zcl_cust_bp_mapper=>resolve_partner( iv_customer_id ).
     IF lv_partner IS INITIAL.

@@ -108,8 +108,14 @@ Failure example (HTTP 422):
 | 201 | true | created |
 | 200 | true | already existed – `partner` / `customer` are the existing keys, `W` message |
 | 400 | false | body empty or not JSON |
-| 422 | false | validation failed, no authorization, or `CL_MD_BP_MAINTAIN` returned `E`/`A` |
+| 403 | false | no authorization (`B_BUPA_RLT`) |
+| 422 | false | validation failed, **simulation** (`VALIDATE_SINGLE`) reported errors, or `MAINTAIN` returned `E`/`A` — see `messages` |
 | 500 | false | unexpected |
+
+**Nothing is committed until the simulation is clean.** `execute` runs
+`CL_MD_BP_MAINTAIN=>VALIDATE_SINGLE` (no database update) first; if it returns
+any `E`/`A` message the call stops there with 422 and those messages, and no BP
+is created. Only a clean simulation proceeds to `MAINTAIN` + `BAPI_TRANSACTION_COMMIT`.
 
 `message[].type`: `S` success · `I` info · `W` warning · `E` error · `A` abort.
 Every `E`/`A` line also carries `id` + `number` (SAP message key) and, where
@@ -135,6 +141,7 @@ Also carries `success` + `messages` (same envelope as POST). On 404 the body is
   "searchTerm1": "CUST-000123",
   "searchTerm2": "076b0117-0154-7561-b0f8",
   "bpType": "Z1",
+  "legalForm": "0002",
   "addrStreet": "1 Marina Road",
   "addrHouseNo": "",
   "addrCity": "Lagos",
@@ -144,9 +151,10 @@ Also carries `success` + `messages` (same envelope as POST). On 404 the body is
   "addrPhone": "",
   "addrMobile": "",
   "addrEmail": "ada@acme.com",
+  "contactName": "Ada Lovelace",
   "roles":         [ { "role": "FLCU01", "validFrom": "0000-00-00", "validTo": "0000-00-00" } ],
   "identification":[ { "idType": "ZCRN", "idNumber": "RC123456" } ],
-  "taxNumbers":    [ { "taxType": "ZTIN", "taxNumber": "12345678-0001" } ],
+  "taxNumbers":    [ { "taxType": "STCD1", "taxNumber": "12345678-0001" } ],
   "bankDetails":   [],
   "salesAreas":    [ { "salesOrg": "1000", "distrChannel": "10", "division": "00" } ],
   "companyCodes":  [ { "companyCode": "1000", "reconAcct": "0000140000" } ],
@@ -156,10 +164,31 @@ Also carries `success` + `messages` (same envelope as POST). On 404 the body is
 }
 ```
 
+### Round-trip (POST → GET)
+
+| POST field | GET field(s) | notes |
+|---|---|---|
+| `customerId` | `searchTerm1` | exact |
+| `applicationId` | `searchTerm2` | first 20 chars (full value in the log) |
+| `businessName` | `orgName1` + `orgName2` | split at 40 |
+| `firstName` + `lastName` | `contactName` | stored as address c/o name |
+| `hqAddress` | `addrStreet` / `addrCity` / `addrCountry` | free-text split |
+| `email` / `mobile` | `addrEmail` / `addrPhone` | default communication record |
+| `bpGrouping` / `bpCategory` | `bpGrouping` / `bpCategory` | exact |
+| `partnerRole` | `roles[]` | + any other roles on the BP |
+| `bpType` | `bpType` | `BUT000-BPKIND` |
+| `legalForm` | `legalForm` | `BUT000-LEGAL_ENTY` |
+| `companyRegNo` (+ `idTypeReg`) | `identification[]` | all id types on the BP |
+| `tinVatRegNo` (+ `taxTypeTin`) | `taxNumbers[]` | echoed as the `KNA1-STCDx` field it landed in (category→field is Customizing) |
+| `salesOrg`/`distrChannel`/`division` | `salesAreas[]` | when `createSales` |
+| `companyCode`/`reconAcct` | `companyCodes[]` | when `createFi` |
+| `industryKeys[]` | `industries[]` | **not echoed** – `BUT0IS` field names vary by release (adaptation point D3) |
+
 | HTTP | meaning |
 |---|---|
 | 200 | found |
 | 400 | `customerId` missing |
+| 403 | no display authorization |
 | 404 | `customerId` unknown, or BP has no linked customer |
 | 500 | unexpected |
 
