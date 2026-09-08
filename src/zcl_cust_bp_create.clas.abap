@@ -124,6 +124,17 @@ CLASS zcl_cust_bp_create IMPLEMENTATION.
                            CHANGING  cs_result      = rs_result ).
         rs_result-success = abap_true.
 
+        " ---- guarantee an outcome message for the caller ----
+        IF NOT line_exists( rs_result-messages[ type = 'S' ] )
+           AND NOT line_exists( rs_result-messages[ type = 'I' ] ).
+          INSERT VALUE #( type    = 'S'
+                          id      = zif_cust_bp_types=>c_msg_class
+                          number  = '017'
+                          message = |Business partner { rs_result-partner } (customer { rs_result-customer }) | &&
+                                    |created for external ID { is_request-customer_id }| )
+                 INTO rs_result-messages INDEX 1.
+        ENDIF.
+
         IF iv_write_log = abap_true.
           write_log( EXPORTING is_request  = is_request
                                iv_raw_json = iv_raw_json

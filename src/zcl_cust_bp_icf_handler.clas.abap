@@ -118,7 +118,17 @@ CLASS zcl_cust_bp_icf_handler IMPLEMENTATION.
             OR lx->if_t100_message~t100key-msgno = '007'
           THEN zif_cust_bp_types=>c_http-not_found
           ELSE lx->http_status ).
-        send( lv_code error_json( lx->get_text( ) ) ).
+        DATA(ls_err) = VALUE zcust_bp_s_read_res(
+          customer_id = lv_id
+          success     = abap_false
+          messages    = VALUE #( ( type   = 'E'
+                                   id     = lx->if_t100_message~t100key-msgid
+                                   number = lx->if_t100_message~t100key-msgno
+                                   message = lx->get_text( ) ) ) ).
+        send( lv_code
+              /ui2/cl_json=>serialize( data        = ls_err
+                                       pretty_name = /ui2/cl_json=>pretty_mode-camel_case
+                                       compress    = abap_false ) ).
     ENDTRY.
   ENDMETHOD.
 

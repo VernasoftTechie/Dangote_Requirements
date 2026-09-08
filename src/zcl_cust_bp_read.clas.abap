@@ -60,6 +60,13 @@ CLASS zcl_cust_bp_read IMPLEMENTATION.
                   iv_customer_id = iv_customer_id
                   iv_partner     = lv_partner
                   is_customer    = ls_out-customers[ 1 ] ).
+
+    rs_result-success = abap_true.
+    APPEND VALUE #( type    = 'S'
+                    id      = zif_cust_bp_types=>c_msg_class
+                    number  = '018'
+                    message = |Customer data read for external ID { iv_customer_id } (BP { lv_partner })| )
+           TO rs_result-messages.
   ENDMETHOD.
 
 ENDCLASS.

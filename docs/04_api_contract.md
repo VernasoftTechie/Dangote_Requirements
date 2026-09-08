@@ -60,13 +60,18 @@ read response = `ZCUST_BP_S_READ_RES`.
 | Identity | `customerId` ✔, `applicationId`, `status`, `approvedAt` | `customerId` ≤ 20 chars, unique, stored in Search Term 1; `applicationId` in Search Term 2 (20 chars) + full value in the log |
 | Company | `businessName` ✔, `tinVatRegNo`, `natureOfBusiness`, `businessType`, `companyRegNo`, `hqAddress`, `firstName`, `lastName`, `email`, `mobile`, `product[]`, `gradeType[]` | human data |
 | SAP keys | `bpGrouping` ✔, `custAcctGrp` (✔ if `createFi`/`createSales`), `legalForm`, `bpType`, `industrySystem`, `industryKeys[]`, `taxTypeTin`, `idTypeReg`, `defaultCountry`, `salesOrg`, `distrChannel`, `division`, `companyCode`, `reconAcct`, `createFi`, `createSales` | already-resolved Customizing keys; omitted values fall back to `ZIF_CUST_BP_TYPES=>c_default` |
-| Attachments | `documents[]` | stored in the log only this phase |
+| Attachments | `documents[]` — **optional** | when present, each entry is `{ fieldId, name, path, contentType }`; echoed to the response + processing log this phase (no DMS/GOS yet) |
 
-✔ = required. Anything that maps to a text value but no SAP key (e.g.
-`businessType` without `legalForm`) produces a `W` message in the response –
-nothing drops silently.
+✔ = required; every other field is optional. Anything that maps to a text value
+but no SAP key (e.g. `businessType` without `legalForm`) produces a `W` message
+in the response – nothing drops silently.
 
 ## POST — response (`ZCUST_BP_S_CREATE_RES`)
+
+**`success` and `messages` are always present** — on every outcome, success or
+failure. `messages` carries the full return table from `CL_MD_BP_MAINTAIN` plus
+any `W` warnings; when the BP API returns none, an explicit `S` line (`ZMSG_CUST_BP 017`)
+is added so the caller always has an outcome message.
 
 ```json
 {
@@ -77,20 +82,43 @@ nothing drops silently.
   "success": true,
   "logId": "0050568A2B1C1EDEA1E4F1C0A8C10012",
   "messages": [
+    { "type": "S", "id": "ZMSG_CUST_BP", "number": "017", "message": "Business partner 0001000123 (customer 0001000123) created for external ID CUST-000123", "field": "" },
     { "type": "S", "id": "R11", "number": "102", "message": "Business partner 0001000123 created", "field": "" }
   ]
 }
 ```
 
-| HTTP | meaning |
-|---|---|
-| 201 | created |
-| 200 | already existed – `partner` / `customer` are the existing keys, `W` message |
-| 400 | body empty or not JSON |
-| 422 | validation failed, no authorization, or `CL_MD_BP_MAINTAIN` returned `E`/`A` |
-| 500 | unexpected |
+Failure example (HTTP 422):
+
+```json
+{
+  "customerId": "CUST-000123",
+  "partner": "",
+  "customer": "",
+  "success": false,
+  "logId": "0050568A2B1C1EDEA1E4F1C0A8C10099",
+  "messages": [
+    { "type": "E", "id": "R1", "number": "807", "message": "Account group 0001 does not exist", "field": "KTOKD" }
+  ]
+}
+```
+
+| HTTP | `success` | meaning |
+|---|---|---|
+| 201 | true | created |
+| 200 | true | already existed – `partner` / `customer` are the existing keys, `W` message |
+| 400 | false | body empty or not JSON |
+| 422 | false | validation failed, no authorization, or `CL_MD_BP_MAINTAIN` returned `E`/`A` |
+| 500 | false | unexpected |
+
+`message[].type`: `S` success · `I` info · `W` warning · `E` error · `A` abort.
+Every `E`/`A` line also carries `id` + `number` (SAP message key) and, where
+`CL_MD_BP_MAINTAIN` supplied it, the offending `field`.
 
 ## GET /sap/bc/zcust_bp?customerId=CUST-000123 — response (`ZCUST_BP_S_READ_RES`)
+
+Also carries `success` + `messages` (same envelope as POST). On 404 the body is
+`{ "customerId": "...", "success": false, "messages": [ { "type": "E", ... } ] }`.
 
 ```json
 {
@@ -98,6 +126,8 @@ nothing drops silently.
   "partner": "0001000123",
   "partnerGuid": "0050568A2B1C1EDEA1E4F1C0A8C0000A",
   "customer": "0001000123",
+  "success": true,
+  "messages": [ { "type": "S", "id": "ZMSG_CUST_BP", "number": "018", "message": "Customer data read for external ID CUST-000123 (BP 0001000123)", "field": "" } ],
   "bpCategory": "2",
   "bpGrouping": "BP02",
   "orgName1": "Acme Ltd",
