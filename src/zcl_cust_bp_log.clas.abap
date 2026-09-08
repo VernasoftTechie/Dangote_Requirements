@@ -13,7 +13,7 @@ CLASS zcl_cust_bp_log DEFINITION
     "! of the BP maintain).
     "! @parameter iv_raw_json | verbatim inbound body, kept for reprocessing
     CLASS-METHODS record
-      IMPORTING iv_operation      TYPE zcust_bp_log-operation
+      IMPORTING iv_operation      TYPE zcust_bp_id
                 iv_customer_id    TYPE zcust_bp_id
                 iv_application_id TYPE zcust_bp_text OPTIONAL
                 iv_ext_status     TYPE zcust_bp_id   OPTIONAL

@@ -370,18 +370,18 @@ CLASS zcl_cust_bp_create IMPLEMENTATION.
 
 
   METHOD enrich_optional.
-    "! EXTENSION POINT - complete against your S/4 release's CVIS_EI_EXTERN.
-    "! Each block is release dependent; verify the node / field names in SE11
-    "! ( type BUS_EI_EXTERN ) and un-comment. Until then the values are
-    "! reported back as W messages so nothing is silently lost.
-    "!
-    "! Legal form   -> partner-central_data-common-data-bp_organization-legalform (+ datax)
-    "! BP type      -> partner-central_data-common-data-bp_centraldata-partnertype (+ datax)
-    "! Identification-> partner-central_data-ident_number-ident_numbers, line:
-    "!                    task, data_key-identificationcategory,
-    "!                    data_key-identificationnumber, data-identrydate
-    "! Industry     -> partner-central_data-industrysector-industrysectors, line:
-    "!                    task, data_key-indsector, data_key-industrysector
+    " EXTENSION POINT - complete against your S/4 release's CVIS_EI_EXTERN.
+    " Each block is release dependent; verify the node / field names in SE11
+    " ( type BUS_EI_EXTERN ) and un-comment. Until then the values are
+    " reported back as W messages so nothing is silently lost.
+    "
+    " Legal form   -> partner-central_data-common-data-bp_organization-legalform (+ datax)
+    " BP type      -> partner-central_data-common-data-bp_centraldata-partnertype (+ datax)
+    " Identification-> partner-central_data-ident_number-ident_numbers, line:
+    "                    task, data_key-identificationcategory,
+    "                    data_key-identificationnumber, data-identrydate
+    " Industry     -> partner-central_data-industrysector-industrysectors, line:
+    "                    task, data_key-indsector, data_key-industrysector
 
     IF is_control-legal_form IS NOT INITIAL OR is_request-business_type IS NOT INITIAL.
       warn( |legalForm / businessType not written - complete enrich_optional( ) for your release| ).
@@ -441,8 +441,7 @@ CLASS zcl_cust_bp_create IMPLEMENTATION.
         APPEND VALUE #( type    = ls_msg-type
                         id      = ls_msg-id
                         msgno   = ls_msg-number
-                        message = ls_msg-message
-                        field   = ls_msg-field ) TO rt_message.
+                        message = ls_msg-message ) TO rt_message.
       ENDLOOP.
     ENDLOOP.
   ENDMETHOD.
