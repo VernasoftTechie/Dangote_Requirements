@@ -1,6 +1,7 @@
 "! ABAP Unit - payload -> CVIS_EI_EXTERN mapping and validation.
 "! Pure logic only: build_cvi / resolve_control / validate touch no database
 "! and issue no COMMIT.
+CLASS ltcl_create DEFINITION DEFERRED.
 CLASS zcl_cust_bp_create DEFINITION LOCAL FRIENDS ltcl_create.
 
 CLASS ltcl_create DEFINITION FINAL FOR TESTING
@@ -18,10 +19,10 @@ CLASS ltcl_create DEFINITION FINAL FOR TESTING
     METHODS control_explicit_values_win       FOR TESTING.
     METHODS build_sets_insert_task            FOR TESTING.
     METHODS build_maps_org_name                FOR TESTING.
-    METHODS build_stores_ids_in_search_terms  FOR TESTING.
+    METHODS build_stores_ids_srchterms  FOR TESTING.
     METHODS build_adds_customer_role          FOR TESTING.
     METHODS build_adds_customer_node          FOR TESTING.
-    METHODS validate_requires_business_name   FOR TESTING.
+    METHODS validate_requires_biz_name   FOR TESTING.
     METHODS validate_requires_grouping        FOR TESTING.
 ENDCLASS.
 
@@ -93,7 +94,7 @@ CLASS ltcl_create IMPLEMENTATION.
   ENDMETHOD.
 
 
-  METHOD build_stores_ids_in_search_terms.
+  METHOD build_stores_ids_srchterms.
     DATA(lt) = mo_cut->build_cvi( request( ) ).
     DATA(ls_central) = lt[ 1 ]-partner-central_data-common-data-bp_centraldata.
     cl_abap_unit_assert=>assert_equals( exp = 'CUST-000123' act = ls_central-searchterm1 ).
@@ -123,7 +124,7 @@ CLASS ltcl_create IMPLEMENTATION.
   ENDMETHOD.
 
 
-  METHOD validate_requires_business_name.
+  METHOD validate_requires_biz_name.
     DATA(ls_req) = request( ).
     CLEAR ls_req-business_name.
     TRY.
