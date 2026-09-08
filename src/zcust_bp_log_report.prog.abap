@@ -1,5 +1,5 @@
 "! <p class="shorttext synchronized">Customer BP API - processing log &amp; reprocess</p>
-"! Displays ZT_CUST_BP_LOG as an ALV grid ( date / time, external id, status,
+"! Displays ZCUST_BP_LOG as an ALV grid ( date / time, external id, status,
 "! HTTP code, BP / customer, leading message, retry count ) and lets the
 "! user re-trigger failed entries from the stored payload.
 "!
@@ -13,23 +13,23 @@ REPORT zcust_bp_log_report.
 
 TYPE-POOLS icon.
 
-DATA gs_log TYPE zt_cust_bp_log.
+DATA gs_log TYPE zcust_bp_log.
 
 TYPES: BEGIN OF ty_row,
-         log_id         TYPE zt_cust_bp_log-log_id,
+         log_id         TYPE zcust_bp_log-log_id,
          created_date   TYPE d,
          created_time   TYPE t,
-         operation      TYPE zt_cust_bp_log-operation,
-         customer_id    TYPE zt_cust_bp_log-customer_id,
-         application_id TYPE zt_cust_bp_log-application_id,
-         status         TYPE zt_cust_bp_log-status,
+         operation      TYPE zcust_bp_log-operation,
+         customer_id    TYPE zcust_bp_log-customer_id,
+         application_id TYPE zcust_bp_log-application_id,
+         status         TYPE zcust_bp_log-status,
          status_icon    TYPE icon_d,
-         http_status    TYPE zt_cust_bp_log-http_status,
-         partner        TYPE zt_cust_bp_log-partner,
-         customer       TYPE zt_cust_bp_log-customer,
-         retry_count    TYPE zt_cust_bp_log-retry_count,
-         message        TYPE zt_cust_bp_log-message,
-         created_by     TYPE zt_cust_bp_log-created_by,
+         http_status    TYPE zcust_bp_log-http_status,
+         partner        TYPE zcust_bp_log-partner,
+         customer       TYPE zcust_bp_log-customer,
+         retry_count    TYPE zcust_bp_log-retry_count,
+         message        TYPE zcust_bp_log-lead_msg,
+         created_by     TYPE zcust_bp_log-created_by,
        END OF ty_row.
 
 TYPES gtt_ts_range TYPE RANGE OF timestampl.
@@ -45,7 +45,7 @@ SELECT-OPTIONS s_op   FOR gs_log-operation.
 SELECTION-SCREEN END OF BLOCK b1.
 
 SELECTION-SCREEN BEGIN OF BLOCK b2 WITH FRAME TITLE TEXT-b02.
-PARAMETERS p_logid TYPE zt_cust_bp_log-log_id.
+PARAMETERS p_logid TYPE zcust_bp_log-log_id.
 PARAMETERS p_repro AS CHECKBOX.
 SELECTION-SCREEN END OF BLOCK b2.
 
@@ -62,7 +62,7 @@ CLASS lcl_app DEFINITION FINAL.
     METHODS reprocess.
     METHODS select_rows.
     METHODS show_alv.
-    METHODS show_messages IMPORTING iv_log_id TYPE zt_cust_bp_log-log_id.
+    METHODS show_messages IMPORTING iv_log_id TYPE zcust_bp_log-log_id.
 ENDCLASS.
 
 
@@ -90,7 +90,7 @@ CLASS lcl_app IMPLEMENTATION.
 
 
   METHOD reprocess.
-    DATA lt_id TYPE STANDARD TABLE OF zt_cust_bp_log-log_id.
+    DATA lt_id TYPE STANDARD TABLE OF zcust_bp_log-log_id.
 
     IF p_logid IS NOT INITIAL.
       APPEND p_logid TO lt_id.
@@ -98,7 +98,7 @@ CLASS lcl_app IMPLEMENTATION.
 
     IF p_repro = abap_true.
       DATA(lr_ts) = ts_range( ).
-      SELECT log_id FROM zt_cust_bp_log
+      SELECT log_id FROM zcust_bp_log
         APPENDING TABLE @lt_id
         WHERE created_at  IN @lr_ts
           AND customer_id IN @s_cust
@@ -120,7 +120,7 @@ CLASS lcl_app IMPLEMENTATION.
   METHOD select_rows.
     DATA(lr_ts) = ts_range( ).
 
-    SELECT * FROM zt_cust_bp_log
+    SELECT * FROM zcust_bp_log
       INTO TABLE @DATA(lt_log)
       WHERE created_at  IN @lr_ts
         AND customer_id IN @s_cust
@@ -151,7 +151,7 @@ CLASS lcl_app IMPLEMENTATION.
         partner        = ls-partner
         customer       = ls-customer
         retry_count    = ls-retry_count
-        message        = ls-message
+        message        = ls-lead_msg
         created_by     = ls-created_by ) TO gt_row.
     ENDLOOP.
   ENDMETHOD.
@@ -198,8 +198,8 @@ CLASS lcl_app IMPLEMENTATION.
 
 
   METHOD show_messages.
-    SELECT seqnr, type, msgid, msgno, message
-      FROM zt_cust_bp_log_msg
+    SELECT seqnr, msgty, msgid, msgno, msgtx
+      FROM zcust_bp_log_msg
       INTO TABLE @DATA(lt_msg)
       WHERE log_id = @iv_log_id
       ORDER BY seqnr.

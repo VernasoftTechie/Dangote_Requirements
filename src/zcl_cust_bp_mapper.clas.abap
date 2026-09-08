@@ -175,6 +175,7 @@ CLASS zcl_cust_bp_mapper IMPLEMENTATION.
   ENDMETHOD.
 
 
+  METHOD enrich_from_bp.
     " BUT000-LEGAL_ENTY = "BP: Legal form of organization" (data elem BU_LEGENT)
     SELECT SINGLE partner_guid, type, bu_group, bpkind, legal_enty,
                   bu_sort1, bu_sort2, name_org1, name_org2

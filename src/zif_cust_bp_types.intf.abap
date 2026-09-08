@@ -39,7 +39,7 @@ INTERFACE zif_cust_bp_types
       outbound TYPE c LENGTH 1 VALUE 'O',
     END OF c_direction.
 
-  "! Values of ZT_CUST_BP_LOG-STATUS
+  "! Values of ZCUST_BP_LOG-STATUS
   CONSTANTS:
     BEGIN OF c_log_status,
       success     TYPE c LENGTH 1 VALUE 'S',

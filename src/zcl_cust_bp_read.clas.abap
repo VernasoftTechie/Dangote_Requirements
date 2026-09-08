@@ -73,7 +73,7 @@ CLASS zcl_cust_bp_read IMPLEMENTATION.
     rs_result-success = abap_true.
     APPEND VALUE #( type    = 'S'
                     id      = zif_cust_bp_types=>c_msg_class
-                    number  = '018'
+                    msgno   = '018'
                     message = |Customer data read for external ID { iv_customer_id } (BP { lv_partner })| )
            TO rs_result-messages.
   ENDMETHOD.

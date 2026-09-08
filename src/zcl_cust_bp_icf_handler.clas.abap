@@ -93,7 +93,7 @@ CLASS zcl_cust_bp_icf_handler IMPLEMENTATION.
 
     DATA(lv_code) = COND i(
       WHEN ls_res-success = abap_true                             THEN zif_cust_bp_types=>c_http-created
-      WHEN line_exists( ls_res-messages[ number = '016' ] )       THEN zif_cust_bp_types=>c_http-forbidden
+      WHEN line_exists( ls_res-messages[ msgno = '016' ] )        THEN zif_cust_bp_types=>c_http-forbidden
       ELSE zif_cust_bp_types=>c_http-unprocessable ).
 
     send( iv_status = lv_code
@@ -129,7 +129,7 @@ CLASS zcl_cust_bp_icf_handler IMPLEMENTATION.
           success     = abap_false
           messages    = VALUE #( ( type    = 'E'
                                    id      = lx->if_t100_message~t100key-msgid
-                                   number  = lx->if_t100_message~t100key-msgno
+                                   msgno   = lx->if_t100_message~t100key-msgno
                                    message = lx->get_text( ) ) ) ).
         send( lv_rc
               /ui2/cl_json=>serialize( data        = ls_err

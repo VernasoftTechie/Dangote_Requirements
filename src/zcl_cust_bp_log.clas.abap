@@ -1,6 +1,6 @@
 "! <p class="shorttext synchronized">Customer BP API - processing log</p>
-"! Persists every inbound call ( success and failure ) in ZT_CUST_BP_LOG /
-"! ZT_CUST_BP_LOG_MSG so that failed requests can be analysed in report
+"! Persists every inbound call ( success and failure ) in ZCUST_BP_LOG /
+"! ZCUST_BP_LOG_MSG so that failed requests can be analysed in report
 "! ZCUST_BP_LOG_REPORT and re-triggered from the stored payload.
 CLASS zcl_cust_bp_log DEFINITION
   PUBLIC
@@ -13,7 +13,7 @@ CLASS zcl_cust_bp_log DEFINITION
     "! of the BP maintain).
     "! @parameter iv_raw_json | verbatim inbound body, kept for reprocessing
     CLASS-METHODS record
-      IMPORTING iv_operation      TYPE zt_cust_bp_log-operation
+      IMPORTING iv_operation      TYPE zcust_bp_log-operation
                 iv_customer_id    TYPE zcust_bp_id
                 iv_application_id TYPE zcust_bp_text OPTIONAL
                 iv_ext_status     TYPE zcust_bp_id   OPTIONAL
@@ -62,7 +62,7 @@ CLASS zcl_cust_bp_log IMPLEMENTATION.
   METHOD record.
     rv_log_id = cl_system_uuid=>create_uuid_c22_static( ).
 
-    DATA(ls_log) = VALUE zt_cust_bp_log(
+    DATA(ls_log) = VALUE zcust_bp_log(
       log_id         = rv_log_id
       direction      = zif_cust_bp_types=>c_direction-inbound
       operation      = iv_operation
@@ -79,11 +79,11 @@ CLASS zcl_cust_bp_log IMPLEMENTATION.
       created_by     = sy-uname ).
 
     LOOP AT it_messages INTO DATA(ls_m) WHERE type CA 'EAX'.
-      ls_log-message = ls_m-message.
+      ls_log-lead_msg = ls_m-message.
       EXIT.
     ENDLOOP.
-    IF ls_log-message IS INITIAL AND it_messages IS NOT INITIAL.
-      ls_log-message = it_messages[ 1 ]-message.
+    IF ls_log-lead_msg IS INITIAL AND it_messages IS NOT INITIAL.
+      ls_log-lead_msg = it_messages[ 1 ]-message.
     ENDIF.
 
     IF is_result IS NOT INITIAL.
@@ -93,34 +93,34 @@ CLASS zcl_cust_bp_log IMPLEMENTATION.
         compress    = abap_false ).
     ENDIF.
 
-    INSERT zt_cust_bp_log FROM ls_log.
+    INSERT zcust_bp_log FROM ls_log.
     save_messages( iv_log_id = rv_log_id it_messages = it_messages ).
     COMMIT WORK.
   ENDMETHOD.
 
 
   METHOD save_messages.
-    DATA lt_msg TYPE STANDARD TABLE OF zt_cust_bp_log_msg.
-    DATA lv_seq TYPE zt_cust_bp_log_msg-seqnr.
+    DATA lt_msg TYPE STANDARD TABLE OF zcust_bp_log_msg.
+    DATA lv_seq TYPE zcust_bp_log_msg-seqnr.
 
-    DELETE FROM zt_cust_bp_log_msg WHERE log_id = @iv_log_id.
+    DELETE FROM zcust_bp_log_msg WHERE log_id = @iv_log_id.
     LOOP AT it_messages INTO DATA(ls_m).
       lv_seq += 1.
-      APPEND VALUE #( log_id  = iv_log_id
-                      seqnr   = lv_seq
-                      type    = ls_m-type
-                      msgid   = ls_m-id
-                      msgno   = ls_m-number
-                      message = ls_m-message ) TO lt_msg.
+      APPEND VALUE #( log_id = iv_log_id
+                      seqnr  = lv_seq
+                      msgty  = ls_m-type
+                      msgid  = ls_m-id
+                      msgno  = ls_m-msgno
+                      msgtx  = ls_m-message ) TO lt_msg.
     ENDLOOP.
     IF lt_msg IS NOT INITIAL.
-      INSERT zt_cust_bp_log_msg FROM TABLE @lt_msg.
+      INSERT zcust_bp_log_msg FROM TABLE @lt_msg.
     ENDIF.
   ENDMETHOD.
 
 
   METHOD reprocess.
-    SELECT SINGLE * FROM zt_cust_bp_log
+    SELECT SINGLE * FROM zcust_bp_log
       INTO @DATA(ls_log)
       WHERE log_id = @iv_log_id.
     IF sy-subrc <> 0.
@@ -173,11 +173,11 @@ CLASS zcl_cust_bp_log IMPLEMENTATION.
     ls_log-response_json = /ui2/cl_json=>serialize(
       data = rs_result pretty_name = /ui2/cl_json=>pretty_mode-camel_case compress = abap_false ).
     LOOP AT rs_result-messages INTO DATA(ls_rm) WHERE type CA 'EAX'.
-      ls_log-message = ls_rm-message.
+      ls_log-lead_msg = ls_rm-message.
       EXIT.
     ENDLOOP.
 
-    UPDATE zt_cust_bp_log FROM ls_log.
+    UPDATE zcust_bp_log FROM ls_log.
     save_messages( iv_log_id = iv_log_id it_messages = rs_result-messages ).
     COMMIT WORK.
 

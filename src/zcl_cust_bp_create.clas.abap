@@ -7,7 +7,7 @@
 "! Flow: authorize -&gt; validate -&gt; idempotency check -&gt;
 "! <em>CL_MD_BP_MAINTAIN=&gt;VALIDATE_SINGLE</em> ( simulation, no update ) -&gt;
 "! only if the simulation is clean: <em>MAINTAIN</em> + <em>BAPI_TRANSACTION_COMMIT</em>.
-"! Every branch writes ZT_CUST_BP_LOG and returns <em>success</em> + <em>messages</em>.
+"! Every branch writes ZCUST_BP_LOG and returns <em>success</em> + <em>messages</em>.
 "!
 "! The external <em>customerId</em> is stored in search term 1
 "! ( BUT000-BU_SORT1 ); <em>applicationId</em> in search term 2. Deep component
@@ -92,7 +92,7 @@ CLASS zcl_cust_bp_create IMPLEMENTATION.
           rs_result-success  = abap_true.
           APPEND VALUE #( type    = 'W'
                           id      = zif_cust_bp_types=>c_msg_class
-                          number  = '004'
+                          msgno   = '004'
                           message = |Customer { is_request-customer_id } already exists (BP { lv_existing })| )
                  TO rs_result-messages.
           IF iv_write_log = abap_true.
@@ -118,7 +118,7 @@ CLASS zcl_cust_bp_create IMPLEMENTATION.
           rs_result-success = abap_false.
           APPEND VALUE #( type    = 'E'
                           id      = zif_cust_bp_types=>c_msg_class
-                          number  = '019'
+                          msgno   = '019'
                           message = |Simulation reported errors for external ID { is_request-customer_id } - nothing was created| )
                  TO rs_result-messages.
           IF iv_write_log = abap_true.
@@ -162,7 +162,7 @@ CLASS zcl_cust_bp_create IMPLEMENTATION.
            AND NOT line_exists( rs_result-messages[ type = 'I' ] ).
           INSERT VALUE #( type    = 'S'
                           id      = zif_cust_bp_types=>c_msg_class
-                          number  = '017'
+                          msgno   = '017'
                           message = |Business partner { rs_result-partner } (customer { rs_result-customer }) | &&
                                     |created for external ID { is_request-customer_id }| )
                  INTO rs_result-messages INDEX 1.
@@ -180,7 +180,7 @@ CLASS zcl_cust_bp_create IMPLEMENTATION.
         rs_result-success = abap_false.
         APPEND VALUE #( type    = 'E'
                         id      = lx->if_t100_message~t100key-msgid
-                        number  = lx->if_t100_message~t100key-msgno
+                        msgno   = lx->if_t100_message~t100key-msgno
                         message = lx->get_text( ) ) TO rs_result-messages.
         IF iv_write_log = abap_true.
           write_log( EXPORTING is_request  = is_request
@@ -414,7 +414,7 @@ CLASS zcl_cust_bp_create IMPLEMENTATION.
     LOOP AT lt_map INTO DATA(ls_map).
       APPEND VALUE #( type    = ls_map-type
                       id      = ls_map-id
-                      number  = ls_map-number
+                      msgno   = ls_map-number
                       message = ls_map-message
                       field   = ls_map-field ) TO et_message.
       IF ls_map-type = 'E' OR ls_map-type = 'A'.
@@ -439,7 +439,7 @@ CLASS zcl_cust_bp_create IMPLEMENTATION.
       LOOP AT ls_obj-object_msg INTO DATA(ls_msg).
         APPEND VALUE #( type    = ls_msg-type
                         id      = ls_msg-id
-                        number  = ls_msg-number
+                        msgno   = ls_msg-number
                         message = ls_msg-message
                         field   = ls_msg-field ) TO rt_message.
       ENDLOOP.
