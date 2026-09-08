@@ -289,16 +289,16 @@ CLASS zcl_cust_bp_create IMPLEMENTATION.
                 ev_city    = DATA(lv_city)
                 ev_country = DATA(lv_country) ).
 
-    ls_addr-task                      = zif_cust_bp_types=>c_task-insert.
-    ls_addr-data_key-operation        = 'XXDFLT'.
-    ls_addr-data-postal-data-street   = lv_street.
-    ls_addr-data-postal-data-city     = lv_city.
-    ls_addr-data-postal-data-country  = lv_country.
-    ls_addr-data-postal-data-langu    = sy-langu.
-    ls_addr-data-postal-datax-street  = abap_true.
-    ls_addr-data-postal-datax-city    = abap_true.
-    ls_addr-data-postal-datax-country = abap_true.
-    ls_addr-data-postal-datax-langu   = abap_true.
+    ls_addr-task                          = zif_cust_bp_types=>c_task-insert.
+    ls_addr-data_key-operation            = 'XXDFLT'.
+    ls_addr-data-postal-data-str_suppl3  = lv_street.
+    ls_addr-data-postal-data-city        = lv_city.
+    ls_addr-data-postal-data-country     = lv_country.
+    ls_addr-data-postal-data-langu       = sy-langu.
+    ls_addr-data-postal-datax-str_suppl3 = abap_true.
+    ls_addr-data-postal-datax-city       = abap_true.
+    ls_addr-data-postal-datax-country    = abap_true.
+    ls_addr-data-postal-datax-langu      = abap_true.
 
     IF is_request-email IS NOT INITIAL.
       APPEND VALUE #( contact-task  = zif_cust_bp_types=>c_task-insert

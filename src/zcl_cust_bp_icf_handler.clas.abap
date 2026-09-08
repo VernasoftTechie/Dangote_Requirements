@@ -16,7 +16,7 @@ CLASS zcl_cust_bp_icf_handler DEFINITION
     "! Pure routing decision - exposed for ABAP Unit.
     CLASS-METHODS determine_action
       IMPORTING iv_method        TYPE string
-      RETURNING VALUE(rv_action) TYPE zcust_bp_id.
+      RETURNING VALUE(rv_action) TYPE string.
 
   PRIVATE SECTION.
     DATA mo_server TYPE REF TO if_http_server.
@@ -44,10 +44,12 @@ ENDCLASS.
 CLASS zcl_cust_bp_icf_handler IMPLEMENTATION.
 
   METHOD determine_action.
-    rv_action = SWITCH #( to_upper( iv_method )
-                          WHEN zif_cust_bp_types=>c_method-post THEN zif_cust_bp_types=>c_operation-create
-                          WHEN zif_cust_bp_types=>c_method-get  THEN zif_cust_bp_types=>c_operation-read
-                          ELSE space ).
+    CASE to_upper( iv_method ).
+      WHEN zif_cust_bp_types=>c_method-post.
+        rv_action = zif_cust_bp_types=>c_operation-create.
+      WHEN zif_cust_bp_types=>c_method-get.
+        rv_action = zif_cust_bp_types=>c_operation-read.
+    ENDCASE.
   ENDMETHOD.
 
 

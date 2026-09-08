@@ -133,7 +133,7 @@ CLASS zcl_cust_bp_mapper IMPLEMENTATION.
 
     SELECT SINGLE k~name1, k~name2, k~erdat, k~ernam, k~adrnr,
                   k~stcd1, k~stcd2, k~stcd3, k~stcd4, k~stcd5, k~stceg,
-                  a~street, a~house_num1, a~city1, a~post_code1,
+                  a~street, a~str_suppl3, a~house_num1, a~city1, a~post_code1,
                   a~region, a~country, a~name_co
       FROM kna1 AS k
       LEFT OUTER JOIN adrc AS a ON a~addrnumber = k~adrnr
@@ -146,7 +146,8 @@ CLASS zcl_cust_bp_mapper IMPLEMENTATION.
     cs_result-org_name1       = ls_k-name1.
     cs_result-org_name2       = ls_k-name2.
     cs_result-contact_name    = ls_k-name_co.
-    cs_result-addr_street     = ls_k-street.
+    cs_result-addr_street     = COND #( WHEN ls_k-street IS NOT INITIAL
+                                        THEN ls_k-street ELSE ls_k-str_suppl3 ).
     cs_result-addr_house_no   = ls_k-house_num1.
     cs_result-addr_city       = ls_k-city1.
     cs_result-addr_postl_code = ls_k-post_code1.
