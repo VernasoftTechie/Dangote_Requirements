@@ -24,6 +24,8 @@ CLASS ltcl_create DEFINITION FINAL FOR TESTING
     METHODS build_adds_customer_node          FOR TESTING.
     METHODS validate_requires_biz_name   FOR TESTING.
     METHODS validate_requires_grouping        FOR TESTING.
+    METHODS bp_number_derived_from_id         FOR TESTING.
+    METHODS bp_number_explicit_wins           FOR TESTING.
 ENDCLASS.
 
 
@@ -144,6 +146,30 @@ CLASS ltcl_create IMPLEMENTATION.
         cl_abap_unit_assert=>fail( 'missing bpGrouping must raise' ).
       CATCH zcx_cust_bp INTO DATA(lx).
         cl_abap_unit_assert=>assert_equals( exp = '012' act = lx->if_t100_message~t100key-msgno ).
+    ENDTRY.
+  ENDMETHOD.
+
+
+  METHOD bp_number_derived_from_id.
+    TRY.
+        cl_abap_unit_assert=>assert_equals(
+          exp = 'CUST000123'
+          act = mo_cut->resolve_bp_number( request( ) ) ).
+      CATCH zcx_cust_bp.
+        cl_abap_unit_assert=>fail( 'CUST-000123 should derive to CUST000123' ).
+    ENDTRY.
+  ENDMETHOD.
+
+
+  METHOD bp_number_explicit_wins.
+    DATA(ls_req) = request( ).
+    ls_req-bp_number = '0001000123'.
+    TRY.
+        cl_abap_unit_assert=>assert_equals(
+          exp = '0001000123'
+          act = mo_cut->resolve_bp_number( ls_req ) ).
+      CATCH zcx_cust_bp.
+        cl_abap_unit_assert=>fail( 'explicit bpNumber must be used as-is' ).
     ENDTRY.
   ENDMETHOD.
 

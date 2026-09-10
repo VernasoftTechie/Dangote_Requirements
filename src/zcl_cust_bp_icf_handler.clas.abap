@@ -102,6 +102,8 @@ CLASS zcl_cust_bp_icf_handler IMPLEMENTATION.
     DATA(lv_code) = COND i(
       WHEN ls_res-success = abap_true                      THEN zif_cust_bp_types=>c_http-created
       WHEN line_exists( ls_res-messages[ msgno = '016' ] ) THEN zif_cust_bp_types=>c_http-forbidden
+      WHEN line_exists( ls_res-messages[ msgno = '004' ] )
+        OR line_exists( ls_res-messages[ msgno = '022' ] ) THEN zif_cust_bp_types=>c_http-conflict
       ELSE zif_cust_bp_types=>c_http-unprocessable ).
 
     send( iv_status = lv_code
@@ -183,6 +185,7 @@ CLASS zcl_cust_bp_icf_handler IMPLEMENTATION.
                  WHEN zif_cust_bp_types=>c_http-created        THEN 'Created'
                  WHEN zif_cust_bp_types=>c_http-bad_request    THEN 'Bad Request'
                  WHEN zif_cust_bp_types=>c_http-forbidden      THEN 'Forbidden'
+                 WHEN zif_cust_bp_types=>c_http-conflict       THEN 'Conflict'
                  WHEN zif_cust_bp_types=>c_http-not_found      THEN 'Not Found'
                  WHEN zif_cust_bp_types=>c_http-not_allowed    THEN 'Method Not Allowed'
                  WHEN zif_cust_bp_types=>c_http-unprocessable  THEN 'Unprocessable Entity'

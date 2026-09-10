@@ -44,6 +44,20 @@ CLASS zcl_cust_bp_create DEFINITION
     METHODS check_authorization
       RAISING zcx_cust_bp.
 
+    "! Hard error ( not idempotent ) when the customerId is already on a BP
+    "! ( search term 1 ) or the target BP number already exists ( BUT000 ).
+    METHODS check_duplicate
+      IMPORTING is_request TYPE zcust_bp_s_create_req
+      RAISING   zcx_cust_bp.
+
+    "! External number assignment: BP number = bpNumber if supplied, else
+    "! derived from customerId ( separators removed, ALPHA-padded ). Raises
+    "! 021 when it cannot fit BU_PARTNER ( 10 chars ).
+    METHODS resolve_bp_number
+      IMPORTING is_request        TYPE zcust_bp_s_create_req
+      RETURNING VALUE(rv_partner) TYPE bu_partner
+      RAISING   zcx_cust_bp.
+
     METHODS warn
       IMPORTING iv_text TYPE string.
 
@@ -90,27 +104,7 @@ CLASS zcl_cust_bp_create IMPLEMENTATION.
     TRY.
         check_authorization( ).
         validate( is_request ).
-
-        " ---- idempotency: customerId already mapped to a BP? ----
-        DATA(lv_existing) = zcl_cust_bp_mapper=>resolve_partner( is_request-customer_id ).
-        IF lv_existing IS NOT INITIAL.
-          rs_result-partner  = lv_existing.
-          rs_result-customer = zcl_cust_bp_mapper=>resolve_customer( lv_existing ).
-          rs_result-success  = abap_true.
-          APPEND VALUE #( type    = 'W'
-                          id      = zif_cust_bp_types=>c_msg_class
-                          msgno   = '004'
-                          message = |Customer { is_request-customer_id } already exists (BP { lv_existing })| )
-                 TO rs_result-messages.
-          IF iv_write_log = abap_true.
-            write_log( EXPORTING is_request  = is_request
-                                 iv_raw_json = iv_raw_json
-                                 iv_status   = zif_cust_bp_types=>c_log_status-success
-                                 iv_http     = zif_cust_bp_types=>c_http-ok
-                       CHANGING  cs_result   = rs_result ).
-          ENDIF.
-          RETURN.
-        ENDIF.
+        check_duplicate( is_request ).
 
         DATA(lt_data) = build_cvi( is_request ).
 
@@ -211,6 +205,23 @@ CLASS zcl_cust_bp_create IMPLEMENTATION.
   ENDMETHOD.
 
 
+  METHOD check_duplicate.
+    DATA(lv_existing) = zcl_cust_bp_mapper=>resolve_partner( is_request-customer_id ).
+    IF lv_existing IS NOT INITIAL.
+      RAISE EXCEPTION TYPE zcx_cust_bp
+        MESSAGE e004(zmsg_cust_bp) WITH is_request-customer_id lv_existing.
+    ENDIF.
+
+    DATA(lv_partner) = resolve_bp_number( is_request ).
+    SELECT SINGLE partner FROM but000 INTO @DATA(lv_dummy)
+      WHERE partner = @lv_partner.
+    IF sy-subrc = 0.
+      RAISE EXCEPTION TYPE zcx_cust_bp
+        MESSAGE e022(zmsg_cust_bp) WITH lv_partner.
+    ENDIF.
+  ENDMETHOD.
+
+
   METHOD validate.
     IF is_request-customer_id IS INITIAL.
       RAISE EXCEPTION TYPE zcx_cust_bp
@@ -231,6 +242,29 @@ CLASS zcl_cust_bp_create IMPLEMENTATION.
       RAISE EXCEPTION TYPE zcx_cust_bp
         MESSAGE e012(zmsg_cust_bp) WITH 'custAcctGrp'.
     ENDIF.
+  ENDMETHOD.
+
+
+  METHOD resolve_bp_number.
+    IF is_request-bp_number IS NOT INITIAL.
+      rv_partner = |{ is_request-bp_number ALPHA = IN }|.
+      RETURN.
+    ENDIF.
+
+    " derive from customerId: drop separators, upper-case, ALPHA-pad
+    DATA(lv_raw) = to_upper( is_request-customer_id ).
+    REPLACE ALL OCCURRENCES OF '-'  IN lv_raw WITH ''.
+    REPLACE ALL OCCURRENCES OF '/'  IN lv_raw WITH ''.
+    REPLACE ALL OCCURRENCES OF '_'  IN lv_raw WITH ''.
+    REPLACE ALL OCCURRENCES OF '.'  IN lv_raw WITH ''.
+    REPLACE ALL OCCURRENCES OF ` `  IN lv_raw WITH ''.
+    CONDENSE lv_raw NO-GAPS.
+
+    IF lv_raw IS INITIAL OR strlen( lv_raw ) > 10.
+      RAISE EXCEPTION TYPE zcx_cust_bp
+        MESSAGE e021(zmsg_cust_bp) WITH is_request-customer_id.
+    ENDIF.
+    rv_partner = |{ lv_raw ALPHA = IN }|.
   ENDMETHOD.
 
 
@@ -261,9 +295,14 @@ CLASS zcl_cust_bp_create IMPLEMENTATION.
     DATA ls_addr  TYPE bus_ei_bupa_address.
 
     "================================================================
-    " PARTNER  ( organisation, internal number )
+    " PARTNER  ( organisation, external number assignment )
     "================================================================
     ls_bp-partner-header-object_task = zif_cust_bp_types=>c_task-insert.
+    TRY.
+        ls_bp-partner-header-object_instance-bpartner = resolve_bp_number( is_request ).
+      CATCH zcx_cust_bp ##NO_HANDLER.
+        " already surfaced by validate( ) which runs first in execute( )
+    ENDTRY.
 
     " ---- category + grouping ( bp_control has no datax mirror ) ----
     ls_bp-partner-central_data-common-data-bp_control-category = ls_ctrl-bp_category.

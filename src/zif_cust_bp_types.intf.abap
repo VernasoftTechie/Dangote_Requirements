@@ -21,6 +21,7 @@ INTERFACE zif_cust_bp_types
       forbidden     TYPE i VALUE 403,
       not_found     TYPE i VALUE 404,
       not_allowed   TYPE i VALUE 405,
+      conflict      TYPE i VALUE 409,
       unprocessable TYPE i VALUE 422,
       server_error  TYPE i VALUE 500,
     END OF c_http.
