@@ -243,6 +243,20 @@ CLASS zcl_cust_bp_create IMPLEMENTATION.
       RAISE EXCEPTION TYPE zcx_cust_bp
         MESSAGE e012(zmsg_cust_bp) WITH 'custAcctGrp'.
     ENDIF.
+
+    " ---- address: country / city / postal code are mandatory ----
+    IF is_request-addr_country IS INITIAL AND ls_ctrl-default_country IS INITIAL.
+      RAISE EXCEPTION TYPE zcx_cust_bp
+        MESSAGE e003(zmsg_cust_bp) WITH 'addrCountry'.
+    ENDIF.
+    IF is_request-addr_city IS INITIAL.
+      RAISE EXCEPTION TYPE zcx_cust_bp
+        MESSAGE e003(zmsg_cust_bp) WITH 'addrCity'.
+    ENDIF.
+    IF is_request-addr_postal_code IS INITIAL.
+      RAISE EXCEPTION TYPE zcx_cust_bp
+        MESSAGE e003(zmsg_cust_bp) WITH 'addrPostalCode'.
+    ENDIF.
   ENDMETHOD.
 
 
@@ -321,24 +335,35 @@ CLASS zcl_cust_bp_create IMPLEMENTATION.
     ls_bp-partner-central_data-common-datax-bp_centraldata-searchterm1 = abap_true.
     ls_bp-partner-central_data-common-datax-bp_centraldata-searchterm2 = abap_true.
 
-    " ---- address ----
-    zcl_cust_bp_mapper=>parse_address(
-      EXPORTING iv_text    = is_request-hq_address
-                iv_country = ls_ctrl-default_country
-      IMPORTING ev_street  = DATA(lv_street)
-                ev_city    = DATA(lv_city)
-                ev_country = DATA(lv_country) ).
+    " ---- address ( structured fields; hqAddress only as street fallback ) ----
+    DATA(lv_country) = COND land1( WHEN is_request-addr_country IS NOT INITIAL
+                                  THEN is_request-addr_country
+                                  ELSE ls_ctrl-default_country ).
+    DATA(lv_street)  = COND string( WHEN is_request-addr_street IS NOT INITIAL
+                                    THEN CONV string( is_request-addr_street )
+                                    ELSE CONV string( is_request-hq_address ) ).
 
-    ls_addr-task                          = zif_cust_bp_types=>c_task-insert.
-    ls_addr-data_key-operation            = 'XXDFLT'.
-    ls_addr-data-postal-data-str_suppl3  = lv_street.
-    ls_addr-data-postal-data-city        = lv_city.
-    ls_addr-data-postal-data-country     = lv_country.
-    ls_addr-data-postal-data-langu       = sy-langu.
-    ls_addr-data-postal-datax-str_suppl3 = abap_true.
-    ls_addr-data-postal-datax-city       = abap_true.
-    ls_addr-data-postal-datax-country    = abap_true.
-    ls_addr-data-postal-datax-langu      = abap_true.
+    ls_addr-task                             = zif_cust_bp_types=>c_task-insert.
+    ls_addr-data_key-operation               = 'XXDFLT'.
+    ls_addr-data-postal-data-standardaddress = abap_true.
+    ls_addr-data-postal-data-street          = lv_street.
+    ls_addr-data-postal-data-house_no        = is_request-addr_house_no.
+    ls_addr-data-postal-data-city            = is_request-addr_city.
+    ls_addr-data-postal-data-postl_cod1      = is_request-addr_postal_code.
+    ls_addr-data-postal-data-region          = is_request-addr_region.
+    ls_addr-data-postal-data-country         = lv_country.
+    ls_addr-data-postal-data-c_o_name        = condense( |{ is_request-first_name } { is_request-last_name }| ).
+    ls_addr-data-postal-data-langu           = sy-langu.
+
+    ls_addr-data-postal-datax-standardaddress = abap_true.
+    ls_addr-data-postal-datax-street          = abap_true.
+    ls_addr-data-postal-datax-house_no        = abap_true.
+    ls_addr-data-postal-datax-city            = abap_true.
+    ls_addr-data-postal-datax-postl_cod1      = abap_true.
+    ls_addr-data-postal-datax-region          = abap_true.
+    ls_addr-data-postal-datax-country         = abap_true.
+    ls_addr-data-postal-datax-c_o_name        = abap_true.
+    ls_addr-data-postal-datax-langu           = abap_true.
 
     IF is_request-email IS NOT INITIAL.
       APPEND VALUE #( contact-task  = zif_cust_bp_types=>c_task-insert
