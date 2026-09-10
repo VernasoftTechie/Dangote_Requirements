@@ -213,9 +213,10 @@ CLASS zcl_cust_bp_create IMPLEMENTATION.
     ENDIF.
 
     DATA(lv_partner) = resolve_bp_number( is_request ).
-    SELECT SINGLE partner FROM but000 INTO @DATA(lv_dummy)
-      WHERE partner = @lv_partner.
-    IF sy-subrc = 0.
+    SELECT SINGLE @abap_true FROM but000
+      WHERE partner = @lv_partner
+      INTO @DATA(lv_exists).
+    IF lv_exists = abap_true.
       RAISE EXCEPTION TYPE zcx_cust_bp
         MESSAGE e022(zmsg_cust_bp) WITH lv_partner.
     ENDIF.
@@ -301,7 +302,7 @@ CLASS zcl_cust_bp_create IMPLEMENTATION.
     TRY.
         ls_bp-partner-header-object_instance-bpartner = resolve_bp_number( is_request ).
       CATCH zcx_cust_bp ##NO_HANDLER.
-        " already surfaced by validate( ) which runs first in execute( )
+        " already surfaced by check_duplicate( ) which runs first in execute( )
     ENDTRY.
 
     " ---- category + grouping ( bp_control has no datax mirror ) ----
