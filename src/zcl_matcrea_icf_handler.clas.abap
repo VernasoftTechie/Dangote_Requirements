@@ -1,7 +1,8 @@
 "! <p class="shorttext synchronized">Material Master API - ICF HTTP handler</p>
 "! ICF handler for service node <em>/sap/zmcs_mate_crea</em>.
 "! <ul>
-"! <li>POST /sap/zmcs_mate_crea -&gt; create material master(s) via BAPI_MATERIAL_SAVEDATA</li>
+"! <li>POST /sap/zmcs_mate_crea                          -&gt; create material master(s) via BAPI_MATERIAL_SAVEDATA</li>
+"! <li>GET  /sap/zmcs_mate_crea?materialCode=...&amp;plant=... -&gt; read material master via BAPI_MATERIAL_GET_DETAIL</li>
 "! </ul>
 "! Freestyle IF_HTTP_EXTENSION handler, deliberately mirroring ZCL_CUST_BP_ICF_HANDLER
 "! instead of the REST-resource framework (IF_REST_RESOURCE / CL_REST_HTTP_HANDLER).
@@ -10,6 +11,10 @@
 "! A freestyle handler gets no automatic session/CSRF behavior at all - this class
 "! does not check or issue one, matching the stateless Basic-Auth call pattern the
 "! integration client expects.
+"!
+"! NOTE (GET): BAPI_MATERIAL_GET_DETAIL's IMPORTING/TABLES parameter names below are
+"! reproduced from standard usage and should be double-checked in SE37 against this
+"! system's release before activating - I could not verify them live.
 CLASS zcl_matcrea_icf_handler DEFINITION
   PUBLIC
   FINAL
@@ -29,9 +34,41 @@ CLASS zcl_matcrea_icf_handler DEFINITION
         server_error TYPE i VALUE 500,
       END OF c_http.
 
+    CONSTANTS : lc_e        TYPE c VALUE 'E',
+                lc_a        TYPE c VALUE 'A',
+                lc_s        TYPE c VALUE 'S',
+                lc_best     TYPE tdid VALUE 'BEST',
+                lc_material TYPE tdobject VALUE 'MATERIAL'.
+
+    TYPES: BEGIN OF ty_message,
+             material_code TYPE matnr,
+             type          TYPE bapi_mtype,
+             message       TYPE bapi_msg,
+           END OF ty_message.
+    TYPES tt_message TYPE STANDARD TABLE OF ty_message WITH EMPTY KEY.
+
+    TYPES: BEGIN OF ty_root,
+             material TYPE zmm_material_creation_tt,
+           END OF ty_root.
+
+    TYPES: BEGIN OF ty_read_response,
+             material TYPE zmm_material_creation_tt,
+             messages TYPE tt_message,
+           END OF ty_read_response.
+
     DATA mo_server TYPE REF TO if_http_server.
 
     METHODS do_create.
+    METHODS do_read.
+
+    "! Checks the fields BAPI_MATERIAL_SAVEDATA needs given the views this handler
+    "! always requests (basic/purchase/storage/account). Appends one combined
+    "! E-type message per material to ct_messages and returns space if invalid,
+    "! so the caller can skip that material the same way it skips duplicates.
+    METHODS validate_material
+      IMPORTING is_material    TYPE zmm_material_creation_st
+      CHANGING  ct_messages    TYPE tt_message
+      RETURNING VALUE(rv_valid) TYPE abap_bool.
 
     METHODS send
       IMPORTING iv_status TYPE i
@@ -49,34 +86,59 @@ CLASS zcl_matcrea_icf_handler IMPLEMENTATION.
     mo_server = server.
     DATA(lv_method) = to_upper( server->request->get_header_field( '~request_method' ) ).
 
-    IF lv_method = 'POST'.
-      do_create( ).
-    ELSE.
-      send( iv_status = c_http-not_allowed
-            iv_body   = error_json( |HTTP { lv_method } is not supported on this resource| ) ).
+    CASE lv_method.
+      WHEN 'POST'.
+        do_create( ).
+      WHEN 'GET'.
+        do_read( ).
+      WHEN OTHERS.
+        send( iv_status = c_http-not_allowed
+              iv_body   = error_json( |HTTP { lv_method } is not supported on this resource| ) ).
+    ENDCASE.
+  ENDMETHOD.
+
+
+  METHOD validate_material.
+
+    DATA lt_missing TYPE string_table.
+
+    IF is_material-materialcode IS INITIAL.
+      APPEND 'materialCode' TO lt_missing.
     ENDIF.
+    IF is_material-industrysector IS INITIAL.
+      APPEND 'industrySector' TO lt_missing.
+    ENDIF.
+    IF is_material-materialtype IS INITIAL.
+      APPEND 'materialType' TO lt_missing.
+    ENDIF.
+    IF is_material-baseuom IS INITIAL.
+      APPEND 'baseUom' TO lt_missing.
+    ENDIF.
+    IF is_material-plant IS INITIAL.
+      APPEND 'plant' TO lt_missing.
+    ENDIF.
+    IF is_material-storagelocation IS INITIAL.
+      APPEND 'storageLocation' TO lt_missing.
+    ENDIF.
+
+    IF lt_missing IS INITIAL.
+      rv_valid = abap_true.
+      RETURN.
+    ENDIF.
+
+    rv_valid = abap_false.
+    APPEND VALUE #(
+      material_code = is_material-materialcode
+      type          = lc_e
+      message       = |Material code { is_material-materialcode }: required field(s) missing - { concat_lines_of( table = lt_missing sep = ', ' ) }|
+    ) TO ct_messages.
+
   ENDMETHOD.
 
 
   METHOD do_create.
 
-    CONSTANTS : lc_e        TYPE c VALUE 'E',
-                lc_a        TYPE c VALUE 'A',
-                lc_s        TYPE c VALUE 'S',
-                lc_best     TYPE tdid VALUE 'BEST',
-                lc_material TYPE tdobject VALUE 'MATERIAL'.
-
-    TYPES: BEGIN OF ty_root,
-             material TYPE zmm_material_creation_tt,
-           END OF ty_root.
-
-    TYPES: BEGIN OF ty_message,
-             material_code TYPE matnr,
-             type          TYPE bapi_mtype,
-             message       TYPE bapi_msg,
-           END OF ty_message.
-
-    DATA: lt_messages TYPE TABLE OF ty_message WITH EMPTY KEY.
+    DATA: lt_messages TYPE tt_message.
 
     DATA: ls_data    TYPE ty_root,
           lt_stream  TYPE string_table,
@@ -121,6 +183,7 @@ CLASS zcl_matcrea_icf_handler IMPLEMENTATION.
 
     IF ls_data IS NOT INITIAL.
 
+      " duplicate check
       LOOP AT ls_data-material INTO DATA(ls_mat).
         DATA(lv_material) = |{ ls_mat-materialcode ALPHA = IN WIDTH = 18 }|.
 
@@ -130,12 +193,20 @@ CLASS zcl_matcrea_icf_handler IMPLEMENTATION.
         INTO @DATA(lv_matnr).
 
         IF lv_matnr IS NOT INITIAL.
-          DATA(lv_msg) = |Material Code:{ lv_material }is already exists in Table|.
           APPEND VALUE #(
-           material_code = lv_material
+           material_code = ls_mat-materialcode
            type          = lc_e
-           message       = lv_msg ) TO lt_messages.
+           message       = |Material code { ls_mat-materialcode } already exists|
+          ) TO lt_messages.
           DELETE ls_data-material WHERE materialcode = ls_mat-materialcode.
+        ENDIF.
+      ENDLOOP.
+
+      " mandatory-field validation - anything missing goes into lt_messages and
+      " is excluded from the BAPI call below, same treatment as a duplicate.
+      LOOP AT ls_data-material INTO DATA(ls_check).
+        IF validate_material( is_material = ls_check CHANGING ct_messages = lt_messages ) = abap_false.
+          DELETE ls_data-material WHERE materialcode = ls_check-materialcode.
         ENDIF.
       ENDLOOP.
 
@@ -347,6 +418,120 @@ CLASS zcl_matcrea_icf_handler IMPLEMENTATION.
 
     send( iv_status = c_http-ok
           iv_body   = ls_json ).
+  ENDMETHOD.
+
+
+  METHOD do_read.
+
+    DATA: ls_response TYPE ty_read_response,
+          ls_row      TYPE zmm_material_creation_st.
+
+    DATA(lv_code_ext) = mo_server->request->get_form_field( 'materialCode' ).
+    DATA(lv_plant)    = mo_server->request->get_form_field( 'plant' ).
+
+    IF lv_code_ext IS INITIAL.
+      send( iv_status = c_http-bad_request
+            iv_body   = error_json( 'Query parameter materialCode is required' ) ).
+      RETURN.
+    ENDIF.
+
+    DATA(lv_matnr) = |{ lv_code_ext ALPHA = IN WIDTH = 18 }|.
+
+    SELECT SINGLE matnr
+    FROM mara
+    WHERE matnr = @lv_matnr
+    INTO @DATA(lv_found).
+
+    IF lv_found IS INITIAL.
+      APPEND VALUE #(
+        material_code = lv_code_ext
+        type          = lc_e
+        message       = |Material code { lv_code_ext } does not exist|
+      ) TO ls_response-messages.
+      send( iv_status = c_http-ok
+            iv_body   = /ui2/cl_json=>serialize( data = ls_response ) ).
+      RETURN.
+    ENDIF.
+
+    DATA: ls_general   TYPE bapimatgeneraldata,
+          ls_plantdata TYPE bapi_marc,
+          ls_valdata   TYPE bapi_mbew,
+          lt_desc      TYPE STANDARD TABLE OF bapi_makt WITH EMPTY KEY,
+          lt_return    TYPE bapiret2_t.
+
+    CALL FUNCTION 'BAPI_MATERIAL_GET_DETAIL'
+      EXPORTING
+        material                = lv_matnr
+        plant                   = lv_plant
+        valuation_area          = lv_plant
+      IMPORTING
+        material_general_data   = ls_general
+        material_plant_data     = ls_plantdata
+        material_valuation_data = ls_valdata
+      TABLES
+        material_description    = lt_desc
+        return                  = lt_return.
+
+    LOOP AT lt_return INTO DATA(ls_ret) WHERE type = lc_e OR type = lc_a.
+      APPEND VALUE #(
+        material_code = lv_code_ext
+        type          = lc_e
+        message       = ls_ret-message
+      ) TO ls_response-messages.
+    ENDLOOP.
+
+    " storage location / bin live at plant+storage-location level (BAPI_MARD),
+    " not returned by BAPI_MATERIAL_GET_DETAIL's general/plant/valuation exports -
+    " read MARD directly instead of guessing at a BAPI table parameter name.
+    DATA(lv_lgort) = space.
+    DATA(lv_lgpla) = space.
+    IF lv_plant IS NOT INITIAL.
+      SELECT SINGLE lgort, lgpla
+      FROM mard
+      WHERE matnr = @lv_matnr
+        AND werks = @lv_plant
+      INTO (@lv_lgort, @lv_lgpla).
+    ENDIF.
+
+    ls_row-materialcode        = |{ lv_matnr ALPHA = OUT }|.
+    ls_row-industrysector      = ls_general-ind_sector.
+    ls_row-materialtype        = ls_general-matl_type.
+    ls_row-plant                = lv_plant.
+    ls_row-storagelocation      = lv_lgort.
+    ls_row-storagebin           = lv_lgpla.
+    ls_row-baseuom              = ls_general-base_uom.
+    ls_row-materialgroup        = ls_general-matl_group.
+    ls_row-oldmaterialnumber    = ls_general-old_mat_no.
+    ls_row-producthierarchy     = ls_general-prod_hier.
+    ls_row-basicmaterial        = ls_general-basic_matl.
+    ls_row-variableorderunit    = ls_general-var_ord_un.
+    ls_row-purchasinggroup      = ls_plantdata-pur_group.
+    ls_row-profitcenter         = ls_plantdata-profit_ctr.
+    ls_row-valuationcategory    = ls_valdata-val_cat.
+    ls_row-pricedetermination   = ls_valdata-ml_settle.
+    ls_row-valuationclass       = ls_valdata-val_class.
+    ls_row-priceunit            = ls_valdata-price_unit.
+    ls_row-pricecontrol         = ls_valdata-price_ctrl.
+    ls_row-movingaverageprice   = ls_valdata-moving_pr.
+    ls_row-standardprice        = ls_valdata-std_price.
+
+    READ TABLE lt_desc INTO DATA(ls_desc) WITH KEY langu = sy-langu.
+    IF sy-subrc = 0.
+      ls_row-shorttext = ls_desc-matl_desc.
+    ENDIF.
+
+    APPEND ls_row TO ls_response-material.
+
+    IF ls_response-messages IS INITIAL.
+      APPEND VALUE #(
+        material_code = lv_code_ext
+        type          = lc_s
+        message       = 'Material read successfully'
+      ) TO ls_response-messages.
+    ENDIF.
+
+    send( iv_status = c_http-ok
+          iv_body   = /ui2/cl_json=>serialize( data = ls_response ) ).
   ENDMETHOD.
 
 
