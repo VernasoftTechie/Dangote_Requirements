@@ -1,10 +1,17 @@
 "! <p class="shorttext synchronized">Offline DDS / TMS outbound - ICF REST handler</p>
-"! Freestyle ICF handler (IF_HTTP_EXTENSION) - same pattern as the Customer BP and
-"! Material Master APIs: stateless Basic Auth, NO CSRF token, NO session logic.
+"! Freestyle ICF handler (IF_HTTP_EXTENSION), stateless Basic Auth, no session logic.
+"! CSRF handshake (needed by the PI/PO REST sender channel):
 "! <ul>
-"! <li>POST  &lt;SICF node&gt;  -&gt; runs the offline TMS / eATC function modules for
-"!     every section present in the JSON body (all sections are optional)</li>
+"! <li>GET / HEAD with header <em>X-CSRF-Token: Fetch</em> -&gt; 200 + response header
+"!     <em>x-csrf-token: &lt;token&gt;</em> (no function module is called)</li>
+"! <li>POST &lt;SICF node&gt; -&gt; runs the offline TMS / eATC function modules for
+"!     every section present in the JSON body (all sections are optional).
+"!     A token sent in <em>X-CSRF-Token</em> is validated (403 if wrong / expired);
+"!     a POST without a token is accepted unless GC_ENFORCE_TOKEN = abap_true.</li>
 "! </ul>
+"! The token is stateless (hash of user + client + hour), valid for the current and the
+"! previous hour, so it survives without a server session. It is a handshake
+"! compatibility token - the security boundary is Basic Auth over HTTPS.
 "! Request keys (case-insensitive, no camel-case conversion):
 "! create_trip, approve_trip, trip_id, dispatch_trip, fuelissue_trip, close_trip,
 "! ISSUE_CNG1_OFFLINE, change_trip, cancel_trip, eATC_achnowledge, Change_eATC.
@@ -46,9 +53,16 @@ CLASS zcl_offline_dds_ob_fin DEFINITION
 
     CONSTANTS:
       gc_method_post      TYPE string VALUE 'POST',
+      gc_method_get       TYPE string VALUE 'GET',
+      gc_method_head      TYPE string VALUE 'HEAD',
+      gc_csrf_header      TYPE string VALUE 'x-csrf-token',
+      gc_csrf_fetch       TYPE string VALUE 'FETCH',
+      gc_csrf_salt        TYPE string VALUE 'ZCL_OFFLINE_DDS_OB_FIN',
+      gc_enforce_token    TYPE abap_bool VALUE abap_false, " abap_true = POST without token -> 403
       gc_content_json     TYPE string VALUE 'application/json; charset=utf-8',
       gc_http_ok          TYPE i      VALUE 200,
       gc_http_bad_request TYPE i      VALUE 400,
+      gc_http_forbidden   TYPE i      VALUE 403,
       gc_http_not_allowed TYPE i      VALUE 405,
       gc_http_server_err  TYPE i      VALUE 500,
       gc_fm_tms           TYPE string VALUE 'ZTMF_OFFLINE_TMS_OB',
@@ -57,6 +71,18 @@ CLASS zcl_offline_dds_ob_fin DEFINITION
     DATA go_server TYPE REF TO if_http_server.
 
     METHODS do_post.
+
+    METHODS do_fetch_token.
+
+    METHODS build_token
+      IMPORTING iv_bucket       TYPE i
+      RETURNING VALUE(rv_token) TYPE string.
+
+    METHODS get_bucket
+      RETURNING VALUE(rv_bucket) TYPE i.
+
+    METHODS is_token_valid
+      RETURNING VALUE(rv_valid) TYPE abap_bool.
 
     METHODS has_tms_data
       IMPORTING is_root         TYPE ty_root
@@ -89,13 +115,84 @@ CLASS zcl_offline_dds_ob_fin IMPLEMENTATION.
     go_server = server.
     DATA(lv_method) = to_upper( server->request->get_header_field( '~request_method' ) ).
 
-    IF lv_method <> gc_method_post.
-      send( iv_status = gc_http_not_allowed
-            iv_body   = error_json( |HTTP { lv_method } is not supported on this resource - use POST| ) ).
+    CASE lv_method.
+
+      WHEN gc_method_get OR gc_method_head.
+        " CSRF handshake: the PI/PO REST channel first sends  X-CSRF-Token: Fetch
+        IF to_upper( server->request->get_header_field( gc_csrf_header ) ) = gc_csrf_fetch.
+          do_fetch_token( ).
+        ELSE.
+          send( iv_status = gc_http_not_allowed
+                iv_body   = error_json( |HTTP { lv_method } is only supported to fetch a CSRF token (header X-CSRF-Token: Fetch) - use POST| ) ).
+        ENDIF.
+
+      WHEN gc_method_post.
+        IF is_token_valid( ) = abap_false.
+          send( iv_status = gc_http_forbidden
+                iv_body   = error_json( 'CSRF token validation failed - fetch a new token (GET with header X-CSRF-Token: Fetch)' ) ).
+          RETURN.
+        ENDIF.
+        do_post( ).
+
+      WHEN OTHERS.
+        send( iv_status = gc_http_not_allowed
+              iv_body   = error_json( |HTTP { lv_method } is not supported on this resource - use POST| ) ).
+
+    ENDCASE.
+
+  ENDMETHOD.
+
+
+  METHOD do_fetch_token.
+
+    go_server->response->set_header_field( name  = gc_csrf_header
+                                           value = build_token( get_bucket( ) ) ).
+    send( iv_status = gc_http_ok
+          iv_body   = to_json( VALUE ty_error( ) ) ).
+
+  ENDMETHOD.
+
+
+  METHOD get_bucket.
+
+    " running hour number: days since 1900-01-01 * 24 + hour of the day
+    DATA(lv_hour) = CONV i( sy-uzeit(2) ).
+    rv_bucket = ( sy-datum - CONV d( '19000101' ) ) * 24 + lv_hour.
+
+  ENDMETHOD.
+
+
+  METHOD build_token.
+
+    DATA lv_hash TYPE string.
+
+    TRY.
+        cl_abap_message_digest=>calculate_hash_for_char(
+          EXPORTING if_algorithm  = 'SHA256'
+                    if_data       = |{ gc_csrf_salt }{ sy-sysid }{ sy-mandt }{ sy-uname }{ iv_bucket }|
+          IMPORTING ef_hashstring = lv_hash ).
+      CATCH cx_root.
+        CLEAR lv_hash.
+    ENDTRY.
+
+    rv_token = to_upper( lv_hash ).
+
+  ENDMETHOD.
+
+
+  METHOD is_token_valid.
+
+    DATA(lv_sent) = to_upper( go_server->request->get_header_field( gc_csrf_header ) ).
+
+    IF lv_sent IS INITIAL.
+      rv_valid = xsdbool( gc_enforce_token = abap_false ).
       RETURN.
     ENDIF.
 
-    do_post( ).
+    " current hour or the previous one
+    DATA(lv_bucket) = get_bucket( ).
+    rv_valid = xsdbool( lv_sent = build_token( lv_bucket )
+                     OR lv_sent = build_token( lv_bucket - 1 ) ).
 
   ENDMETHOD.
 
@@ -245,6 +342,7 @@ CLASS zcl_offline_dds_ob_fin IMPLEMENTATION.
       reason = SWITCH string( iv_status
                  WHEN gc_http_ok          THEN `OK`
                  WHEN gc_http_bad_request THEN `Bad Request`
+                 WHEN gc_http_forbidden   THEN `Forbidden`
                  WHEN gc_http_not_allowed THEN `Method Not Allowed`
                  ELSE `Internal Server Error` ) ).
     go_server->response->set_cdata( iv_body ).
